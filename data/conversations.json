@@ -1,0 +1,154 @@
+[
+  {
+    "conversationId": "conv2_1789930972270",
+    "customerId": "cust_test_1789930972270",
+    "title": "الشنط",
+    "createdAt": "2026-09-20T19:03:03.145Z",
+    "updatedAt": "2026-09-20T19:03:03.145Z",
+    "messages": [
+      {
+        "id": "msg_cust_1789930983146_jo70",
+        "conversationId": "conv2_1789930972270",
+        "role": "customer",
+        "content": "عندكم شنط؟",
+        "timestamp": "٠٧:٠٣ م"
+      },
+      {
+        "id": "msg_ast_1789930983147_1wpn",
+        "conversationId": "conv2_1789930972270",
+        "role": "assistant",
+        "content": "حيّاك الله يا الغالي في \"مدهال الطيب\". أبشر بسعدك، متوفر عندنا شنط فارغة لحفظ العود والطيب، وتجي بأربعة ألوان أنيقة (جملي، بيج، أخضر، أسود).\n\nعشان أخدمك بالشكل الصحيح، هل تحتاج مقاس معين؟ هذي المقاسات والأسعار المتوفرة عندنا للشنط الفارغة:\n\n*   **ثمن كيلو:** 20 ريال.\n*   **ربع كيلو:** 25 ريال.\n*   **نصف كيلو:** 30 ريال.\n*   **كيلو:** 35 ريال.\n\n(ملاحظة: هذه الشنط فارغة تماماً بدون أي محتويات).\n\nبانتظار اختيارك، أو إذا تبي مساعدة في اختيار المقاس المناسب لا تتردد!",
+        "suggestions": [
+          "شنطة كيلو",
+          "هل تتوفر شنط مع بخور؟",
+          "قارن بينهم"
+        ],
+        "productCards": [
+          {
+            "id": "bag_empty_collection",
+            "name": "شنطة قماشية فارغة لحفظ العود والطيب",
+            "category": "الشنط والإكسسوارات",
+            "variant": "ثمن كيلو",
+            "price": 20,
+            "priceDisplay": "20 ريال",
+            "description": "شنطة فارغة لحفظ الطيب، متوفرة بألوان (جملي، بيج، أخضر، أسود)",
+            "inStock": true,
+            "imageUrl": "https://cdn.salla.sa/mQbPb/cuaDiiyUcB5vb0YanPYRDXH5dxEh3TJzMQYh6yBm.jpg",
+            "productUrl": "https://medhaloud.com/شنط-البخور/c1820942889"
+          },
+          {
+            "id": "bag_empty_collection",
+            "name": "شنطة قماشية فارغة لحفظ العود والطيب",
+            "category": "الشنط والإكسسوارات",
+            "variant": "ربع كيلو",
+            "price": 25,
+            "priceDisplay": "25 ريال",
+            "description": "شنطة فارغة لحفظ الطيب، متوفرة بألوان (جملي، بيج، أخضر، أسود)",
+            "inStock": true,
+            "imageUrl": "https://cdn.salla.sa/mQbPb/cuaDiiyUcB5vb0YanPYRDXH5dxEh3TJzMQYh6yBm.jpg",
+            "productUrl": "https://medhaloud.com/شنط-البخور/c1820942889"
+          },
+          {
+            "id": "bag_empty_collection",
+            "name": "شنطة قماشية فارغة لحفظ العود والطيب",
+            "category": "الشنط والإكسسوارات",
+            "variant": "نصف كيلو",
+            "price": 30,
+            "priceDisplay": "30 ريال",
+            "description": "شنطة فارغة لحفظ الطيب، متوفرة بألوان (جملي، بيج، أخضر، أسود)",
+            "inStock": true,
+            "imageUrl": "https://cdn.salla.sa/mQbPb/cuaDiiyUcB5vb0YanPYRDXH5dxEh3TJzMQYh6yBm.jpg",
+            "productUrl": "https://medhaloud.com/شنط-البخور/c1820942889"
+          }
+        ],
+        "timestamp": "٠٧:٠٣ م"
+      }
+    ]
+  },
+  {
+    "conversationId": "conv1_1789930972270",
+    "customerId": "cust_test_1789930972270",
+    "title": "عود للبيت",
+    "createdAt": "2026-09-20T19:02:52.271Z",
+    "updatedAt": "2026-09-20T19:02:57.755Z",
+    "messages": [
+      {
+        "id": "msg_cust_1789930974399_rbv0",
+        "conversationId": "conv1_1789930972270",
+        "role": "customer",
+        "content": "أبي عود للبيت",
+        "timestamp": "٠٧:٠٢ م"
+      },
+      {
+        "id": "msg_ast_1789930974400_5zfs",
+        "conversationId": "conv1_1789930972270",
+        "role": "assistant",
+        "content": "حيّاك الله يا غالي في \"مدهال الطيب\"، وأبشر بسعدك. عشان أختار لك العود الأنسب لتبخير البيت، هل تفضله عود طبيعي أو عود محسن (للاستخدام اليومي)؟ وأيضاً هل تحب الرائحة تكون قوية وفواحة للمجالس، أو هادية للاستخدام اليومي؟",
+        "suggestions": [
+          "عود طبيعي",
+          "عود محسن",
+          "عروض العود"
+        ],
+        "productCards": [],
+        "timestamp": "٠٧:٠٢ م"
+      },
+      {
+        "id": "msg_cust_1789930977755_d6vp",
+        "conversationId": "conv1_1789930972270",
+        "role": "customer",
+        "content": "وش سعره؟",
+        "timestamp": "٠٧:٠٢ م"
+      },
+      {
+        "id": "msg_ast_1789930977756_5o8l",
+        "conversationId": "conv1_1789930972270",
+        "role": "assistant",
+        "content": "أبشر بسعدك، الأسعار تختلف حسب النوع والوزن اللي تختاره، وعشان أعطيك أدق معلومة، خلني أوضح لك الخيارات الأكثر طلباً للاستخدام اليومي في البيت:\n\n1. **العود المحسن (مناسب جداً للاستخدام اليومي):**\n   - **التايقر الذهبي:** يبدأ من 35 ريال للأوقية، ويوصل لـ 800 ريال للكيلو.\n   - **موروكي التميز:** يبدأ من 95 ريال للأوقية، ويوصل لـ 1600 ريال للكيلو.\n   - **عود موروكي ميني محسن:** خيار اقتصادي وممتاز، يبدأ من 30 ريال للأوقية، ويوصل لـ 800 ريال للكيلو.\n\n2. **العود الطبيعي (للمجالس والمناسبات):**\n   - **دقة موروكي اصقون فصفص:** يبدأ من 135 ريال للأوقية، ويوصل لـ 4000 ريال للكيلو.\n   - **موري هندي نجلاند:** يبدأ من 300 ريال للأوقية (أو 150 ريال للتولة)، ويوصل لـ 10,000 ريال للكيلو.\n\nإذا ودك بشيء معين أو ميزانية محددة، عطني خبر وأبشر باللي يرضيك.",
+        "suggestions": [
+          "قارن بينهم",
+          "أبي أشوف عروض العود",
+          "أبي عود طبيعي للمجالس"
+        ],
+        "productCards": [
+          {
+            "id": "enh_1",
+            "name": "التايقر الذهبي",
+            "category": "العود المحسن",
+            "variant": "أوقية",
+            "price": 35,
+            "priceDisplay": "35 ريال",
+            "description": "عود محسن مناسب للاستخدام اليومي",
+            "inStock": true,
+            "imageUrl": null,
+            "productUrl": "https://medhaloud.com/"
+          },
+          {
+            "id": "enh_5",
+            "name": "موروكي التميز",
+            "category": "العود المحسن",
+            "variant": "أوقية",
+            "price": 95,
+            "priceDisplay": "95 ريال",
+            "description": "عود محسن فاخر للاستخدام اليومي والمجالس",
+            "inStock": true,
+            "imageUrl": null,
+            "productUrl": "https://medhaloud.com/"
+          },
+          {
+            "id": "enh_11",
+            "name": "عود موروكي ميني محسن",
+            "category": "العود المحسن",
+            "variant": "أوقية",
+            "price": 30,
+            "priceDisplay": "30 ريال",
+            "description": "خيار اقتصادي ومناسب للاستخدام اليومي",
+            "inStock": true,
+            "imageUrl": "https://cdn.salla.sa/mQbPb/hh7Hun6126WaNdn3aDqlRoodSRaghRp6GRkLXEE3.jpg",
+            "productUrl": "https://medhaloud.com/عود-موروكي-ميني-محسن/p985954782"
+          }
+        ],
+        "timestamp": "٠٧:٠٢ م"
+      }
+    ]
+  }
+]

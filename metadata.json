@@ -1,0 +1,6 @@
+{
+  "name": "مساعد مدهال الطيب لخدمة العملاء",
+  "description": "مساعد ذكاء اصطناعي تفاعلي لمبيعات وخدمة عملاء متجر مدهال الطيب يفهم النية والسياق واللهجة السعودية",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
