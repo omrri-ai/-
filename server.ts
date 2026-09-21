@@ -345,8 +345,8 @@ async function generateGeminiReply(
   contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
   systemInstruction: string
 ): Promise<string> {
-  // Allowed models with fallback hierarchy (gemini-3.1-flash-lite is active and within quota)
-  const models = ['gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+  // Allowed models with fallback hierarchy (gemini-3.5-flash-lite primary)
+  const models = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
   let lastError: any = null;
 
   for (const model of models) {
@@ -978,4 +978,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;

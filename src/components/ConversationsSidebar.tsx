@@ -40,14 +40,14 @@ export const ConversationsSidebar: React.FC<ConversationsSidebarProps> = ({
         }`}
       >
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-[#241c14] flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#201912] border border-[#3d2e1e] flex items-center justify-center overflow-hidden p-0.5">
+        <div className="p-3.5 sm:p-4 border-b border-[#241c14] flex items-center justify-between">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-8 h-8 rounded-lg bg-[#201912] border border-[#3d2e1e] flex items-center justify-center overflow-hidden p-0.5 shrink-0">
               <img src="/icon.png" alt="شعار مدهال الطيب" className="w-full h-full object-contain" />
             </div>
-            <div>
-              <h2 className="text-sm font-bold text-[#f5ebd9]">مدهال الطيب</h2>
-              <p className="text-[11px] text-[#8e7e6e]">سجل استشاراتك ومحادثاتك</p>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xs sm:text-sm font-bold text-[#f5ebd9] truncate leading-snug">مدهال الطيب</h2>
+              <p className="text-[10px] sm:text-[11px] text-[#8e7e6e] truncate leading-tight mt-0.5">سجل استشاراتك ومحادثاتك</p>
             </div>
           </div>
 

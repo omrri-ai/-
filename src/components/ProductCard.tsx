@@ -91,28 +91,28 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       </div>
 
       {/* Product Details */}
-      <div className="p-3.5 flex flex-col flex-1 justify-between gap-2.5">
-        <div>
-          <h4 className="text-xs sm:text-sm font-bold text-[#f5ebd9] leading-snug line-clamp-2">
+      <div className="p-3 sm:p-3.5 flex flex-col flex-1 justify-between gap-2">
+        <div className="min-w-0">
+          <h4 className="text-xs sm:text-sm font-bold text-[#f5ebd9] leading-snug line-clamp-2 break-words">
             {product.name}
           </h4>
 
           {/* Perfume specific specs or standard variants */}
           {isPerfume ? (
-            <div className="space-y-1 mt-1.5">
-              <div className="text-[11px] text-[#c4b097] font-medium flex items-center gap-1">
+            <div className="space-y-1 mt-1.5 leading-normal">
+              <div className="text-[11px] text-[#c4b097] font-medium flex items-center gap-1 flex-wrap">
                 <span>السعة:</span>
                 <span className="text-[#ecd7b6] font-semibold">{product.capacity || '100 مل'}</span>
               </div>
               {product.inspiredBy && (
-                <div className="text-[11px] text-[#c99738] font-medium flex items-center gap-1">
+                <div className="text-[11px] text-[#c99738] font-medium flex items-center gap-1 flex-wrap">
                   <Sparkles className="w-3 h-3 shrink-0" />
                   <span>مستوحى من:</span>
-                  <span className="text-[#ffd983]">{product.inspiredBy}</span>
+                  <span className="text-[#ffd983] break-words">{product.inspiredBy}</span>
                 </div>
               )}
               {product.fragranceProfile && (
-                <div className="text-[10px] text-[#a89886]">
+                <div className="text-[10px] text-[#a89886] break-words">
                   <span>الطابع العطري: </span>
                   <span className="text-[#c7b9a7]">{product.fragranceProfile}</span>
                 </div>
@@ -120,24 +120,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             </div>
           ) : (
             product.variant && (
-              <div className="text-[11px] text-[#c4b097] mt-1 font-medium">
+              <div className="text-[11px] text-[#c4b097] mt-1 font-medium break-words">
                 الخيار / المقاس: <span className="text-[#ecd7b6]">{product.variant}</span>
               </div>
             )
           )}
 
           {product.description && (
-            <p className="text-[11px] text-[#9c8c79] leading-relaxed mt-1.5 line-clamp-2">
+            <p className="text-[11px] text-[#9c8c79] leading-relaxed mt-1.5 line-clamp-2 break-words">
               {product.description}
             </p>
           )}
         </div>
 
         {/* Price & Action Button */}
-        <div className="pt-2 border-t border-[#292017] flex items-center justify-between gap-2">
-          <div className="text-right">
+        <div className="pt-2 border-t border-[#292017] flex items-center justify-between gap-1.5 min-w-0">
+          <div className="text-right shrink-0">
             <span className="text-[10px] text-[#80705f] block leading-none">السعر الرسمي</span>
-            <span className="text-xs sm:text-sm font-extrabold text-[#e8c374]">
+            <span className="text-xs sm:text-sm font-extrabold text-[#e8c374] leading-tight block">
               {product.priceDisplay || (product.price ? `${product.price} ريال` : 'حسب الخيار')}
             </span>
           </div>
@@ -148,7 +148,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               href={targetUrl!}
               target="_blank"
               rel="noopener noreferrer"
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition shrink-0 ${
+              className={`inline-flex items-center gap-1 px-2 py-1.5 sm:px-2.5 sm:py-1.5 rounded-lg border text-[11px] sm:text-xs font-medium transition shrink-0 max-w-[130px] sm:max-w-[160px] ${
                 product.hasDirectPage === false
                   ? 'bg-[#221c16] hover:bg-[#2e241b] border-[#403324] hover:border-[#c99738]/70 text-[#ddcaa8] hover:text-[#ffd983]'
                   : product.linkType === 'offer'
@@ -157,8 +157,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               }`}
               title={linkTooltip}
             >
-              <span>{buttonLabel}</span>
-              <ExternalLink className="w-3 h-3 text-[#c99738]" />
+              <span className="truncate">{buttonLabel}</span>
+              <ExternalLink className="w-3 h-3 text-[#c99738] shrink-0" />
             </a>
           )}
         </div>
