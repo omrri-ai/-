@@ -2,7 +2,6 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
-import { createServer as createViteServer } from 'vite';
 import { MidhalKnowledgeBase, ProductCardData, CustomerMessage } from './src/types.ts';
 import { MIDHAL_OFFICIAL_CATALOG, searchCatalog, findOptionsByBudget } from './src/data/midhalCatalog.ts';
 import { PERFUME_PROFILES, getVerifiedMediaForProduct } from './src/data/officialStoreData.ts';
@@ -1120,6 +1119,7 @@ app.post('/api/admin/unanswered/resolve', (req: Request, res: Response) => {
 // Start Vite server or static handling
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
