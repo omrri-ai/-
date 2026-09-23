@@ -15,6 +15,7 @@ import {
   STORE_VERIFIED_PRODUCTS,
   STORE_HOMEPAGE,
 } from './src/data/storeSiteMap.ts';
+import { analytics } from './server/analyticsStore.ts';
 
 dotenv.config();
 
@@ -340,16 +341,25 @@ app.post('/api/knowledge', (req: Request, res: Response) => {
   }
 });
 
+interface GeminiReplyResult {
+  text: string;
+  modelUsed: string;
+  promptTokens: number;
+  candidateTokens: number;
+  totalTokens: number;
+}
+
 async function generateGeminiReply(
   ai: GoogleGenAI,
   contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
   systemInstruction: string
-): Promise<string> {
+): Promise<GeminiReplyResult> {
   // Allowed models with fallback hierarchy (gemini-3.5-flash-lite primary)
   const models = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
   let lastError: any = null;
 
-  for (const model of models) {
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
     try {
       const response = await ai.models.generateContent({
         model,
@@ -361,12 +371,33 @@ async function generateGeminiReply(
       });
 
       if (response.text) {
-        return response.text;
+        const usage = (response as any).usageMetadata;
+        const promptTokens = usage?.promptTokenCount || 0;
+        const candidateTokens = usage?.candidatesTokenCount || 0;
+        const totalTokens = usage?.totalTokenCount || (promptTokens + candidateTokens);
+
+        return {
+          text: response.text,
+          modelUsed: model,
+          promptTokens,
+          candidateTokens,
+          totalTokens,
+        };
       }
     } catch (err: any) {
       lastError = err;
       const errMsg = err?.message || String(err);
       console.warn(`[Gemini API] model: ${model} encountered: ${errMsg}`);
+
+      const nextModel = models[i + 1];
+      if (nextModel) {
+        analytics.recordFallback(model, nextModel, errMsg.slice(0, 100));
+      }
+      if (errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('Quota')) {
+        analytics.recordError('429', errMsg);
+      } else {
+        analytics.recordError('other', errMsg);
+      }
 
       // If transient 503 or overload, retry once after short delay
       if (errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('UNAVAILABLE')) {
@@ -381,7 +412,18 @@ async function generateGeminiReply(
             },
           });
           if (retryResponse.text) {
-            return retryResponse.text;
+            const usage = (retryResponse as any).usageMetadata;
+            const promptTokens = usage?.promptTokenCount || 0;
+            const candidateTokens = usage?.candidatesTokenCount || 0;
+            const totalTokens = usage?.totalTokenCount || (promptTokens + candidateTokens);
+
+            return {
+              text: retryResponse.text,
+              modelUsed: model,
+              promptTokens,
+              candidateTokens,
+              totalTokens,
+            };
           }
         } catch (retryErr: any) {
           lastError = retryErr;
@@ -934,8 +976,23 @@ app.post('/api/chat', async (req: Request, res: Response) => {
       parts: [{ text: message }],
     });
 
-    const rawReply = await generateGeminiReply(ai, contents, systemInstruction);
-    const { reply, suggestions, productCards } = parseReplyAndSuggestions(rawReply, message);
+    const geminiResult = await generateGeminiReply(ai, contents, systemInstruction);
+    const { reply, suggestions, productCards } = parseReplyAndSuggestions(geminiResult.text, message);
+
+    // Record agent request telemetry with real token metadata
+    analytics.recordAgentRequest({
+      model: geminiResult.modelUsed,
+      promptTokens: geminiResult.promptTokens,
+      candidateTokens: geminiResult.candidateTokens,
+      totalTokens: geminiResult.totalTokens,
+      userQuery: message,
+      agentReply: reply,
+      detectedTopic: intentAnalysis.detectedIntent,
+    });
+
+    if (productCards && productCards.length > 0) {
+      analytics.recordProductImpressions(productCards.map((c) => c.name));
+    }
 
     res.json({
       reply: reply || 'حيّاك الله في مدهال الطيب، سم كيف أقدر أخدمك اليوم في العود والطيب؟',
@@ -956,6 +1013,109 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     });
   }
 });
+
+// Client Telemetry Track API (Anonymous, zero-PII)
+app.post('/api/analytics/track', (req: Request, res: Response) => {
+  try {
+    const { eventType, visitorId, sessionId, isNew, device, referrer, path: pagePath, metadata } = req.body || {};
+
+    // Region detection from Vercel deployment headers if available
+    const country = (req.headers['x-vercel-ip-country'] as string) || '';
+    const city = (req.headers['x-vercel-ip-city'] as string) || '';
+    const location = city && country ? `${decodeURIComponent(city)}، ${country}` : country === 'SA' ? 'الرياض، السعودية' : undefined;
+
+    if (eventType === 'pageview') {
+      analytics.recordPageView({
+        visitorId: visitorId || 'anon',
+        sessionId,
+        isNew: Boolean(isNew),
+        device,
+        referrer,
+        path: pagePath,
+        location,
+      });
+    } else if (eventType === 'conversation_start') {
+      analytics.recordConversationStart();
+    } else if (eventType === 'product_click') {
+      if (metadata?.productName) {
+        analytics.recordProductClick(metadata.productName, false);
+      }
+    } else if (eventType === 'product_link_click') {
+      if (metadata?.productName) {
+        analytics.recordProductClick(metadata.productName, true);
+      }
+    } else if (eventType === 'product_impression') {
+      if (Array.isArray(metadata?.products)) {
+        analytics.recordProductImpressions(metadata.products);
+      }
+    }
+
+    res.json({ success: true });
+  } catch {
+    res.status(400).json({ success: false });
+  }
+});
+
+// Admin Authentication API
+app.post('/api/admin/login', (req: Request, res: Response) => {
+  const { username, password } = req.body || {};
+  const expectedUser = process.env.ADMIN_USERNAME || 'admin';
+  const expectedPass = process.env.ADMIN_PASSWORD || 'midhal@2026';
+
+  if (username === expectedUser && password === expectedPass) {
+    const token = analytics.createAdminSession(username);
+    res.json({ success: true, token, user: username });
+  } else {
+    res.status(401).json({
+      success: false,
+      error: 'اسم المستخدم أو كلمة المرور غير صحيحة',
+    });
+  }
+});
+
+// Admin Metrics API
+app.get('/api/admin/metrics', (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : '';
+
+  if (!analytics.verifyAdminToken(token)) {
+    res.status(401).json({
+      success: false,
+      error: 'غير مصرح بالدخول، يرجى تسجيل الدخول مجدداً',
+    });
+    return;
+  }
+
+  const period = (req.query.period as any) || '7d';
+  const metrics = analytics.getFilteredMetrics(period);
+  res.json({ success: true, ...metrics });
+});
+
+// Admin Logout API
+app.post('/api/admin/logout', (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : '';
+  if (token) analytics.revokeAdminToken(token);
+  res.json({ success: true });
+});
+
+// Admin Resolve Unanswered Question API
+app.post('/api/admin/unanswered/resolve', (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : '';
+
+  if (!analytics.verifyAdminToken(token)) {
+    res.status(401).json({ success: false, error: 'غير مصرح بالدخول' });
+    return;
+  }
+
+  const { id } = req.body || {};
+  if (id) {
+    analytics.resolveUnansweredQuestion(id);
+  }
+  res.json({ success: true });
+});
+
 
 // Start Vite server or static handling
 async function startServer() {

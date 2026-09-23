@@ -2,11 +2,39 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Header } from './components/Header';
 import { ChatView } from './components/ChatView';
 import { ConversationsSidebar } from './components/ConversationsSidebar';
+import { AdminDashboard } from './components/AdminDashboard';
 import { CustomerConversation, CustomerMessage, MidhalKnowledgeBase } from './types';
 import { getCustomerId } from './utils/customer';
 import { generateConversationTitle, pruneConversations, MAX_CONVERSATIONS } from './utils/conversationUtils';
+import { trackClientEvent } from './utils/analyticsClient';
 
 export default function App() {
+  const [isAdminRoute, setIsAdminRoute] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname;
+    return path === '/admin' || path === '/admin/' || window.location.hash === '#admin';
+  });
+
+  useEffect(() => {
+    const handleRouteCheck = () => {
+      const path = window.location.pathname;
+      setIsAdminRoute(path === '/admin' || path === '/admin/' || window.location.hash === '#admin');
+    };
+    window.addEventListener('popstate', handleRouteCheck);
+    window.addEventListener('hashchange', handleRouteCheck);
+    return () => {
+      window.removeEventListener('popstate', handleRouteCheck);
+      window.removeEventListener('hashchange', handleRouteCheck);
+    };
+  }, []);
+
+  // Track pageview on customer storefront mount
+  useEffect(() => {
+    if (!isAdminRoute) {
+      trackClientEvent('pageview');
+    }
+  }, [isAdminRoute]);
+
   const customerId = useMemo(() => getCustomerId(), []);
 
   // Conversations state initialized purely from local storage
@@ -134,6 +162,7 @@ export default function App() {
 
   // Action: Create + New Conversation
   const handleNewConversation = () => {
+    trackClientEvent('conversation_start');
     const newConv = createFreshConversation();
     setActiveConversationId(newConv.conversationId);
     setConversations((prev) => {
@@ -313,6 +342,10 @@ export default function App() {
       setIsLoading(false);
     }
   };
+
+  if (isAdminRoute) {
+    return <AdminDashboard />;
+  }
 
   return (
     <div className="min-h-screen bg-[#110f0d] text-[#f4efe6] flex flex-col font-['Cairo'] selection:bg-[#c99738]/30 selection:text-[#fff]">

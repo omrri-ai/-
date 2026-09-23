@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ExternalLink, CheckCircle2, XCircle, Sparkles } from 'lucide-react';
 import { ProductCardData } from '../types.ts';
+import { trackClientEvent } from '../utils/analyticsClient.ts';
 
 interface ProductCardProps {
   product: ProductCardData;
@@ -45,7 +46,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       : 'فتح صفحة المنتج الرسمية في متجر مدهال الطيب';
 
   return (
-    <div className="rounded-xl bg-[#1b1612] border border-[#35291e] hover:border-[#c99738]/50 transition duration-200 overflow-hidden shadow-md flex flex-col text-right">
+    <div
+      onClick={() => trackClientEvent('product_click', { productName: product.name })}
+      className="rounded-xl bg-[#1b1612] border border-[#35291e] hover:border-[#c99738]/50 transition duration-200 overflow-hidden shadow-md flex flex-col text-right cursor-pointer group"
+    >
       {/* Image Container */}
       <div className="relative w-full h-36 bg-[#13100d] overflow-hidden flex items-center justify-center border-b border-[#2d2218]">
         {hasImage ? (
@@ -148,6 +152,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               href={targetUrl!}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => {
+                e.stopPropagation();
+                trackClientEvent('product_link_click', { productName: product.name, url: targetUrl });
+              }}
               className={`inline-flex items-center gap-1 px-2 py-1.5 sm:px-2.5 sm:py-1.5 rounded-lg border text-[11px] sm:text-xs font-medium transition shrink-0 max-w-[130px] sm:max-w-[160px] ${
                 product.hasDirectPage === false
                   ? 'bg-[#221c16] hover:bg-[#2e241b] border-[#403324] hover:border-[#c99738]/70 text-[#ddcaa8] hover:text-[#ffd983]'
