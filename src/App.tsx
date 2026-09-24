@@ -253,9 +253,10 @@ export default function App() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               message: text,
-              conversationHistory: updatedMessages.slice(-10).map((m) => ({
+              conversationHistory: currentConv.messages.map((m) => ({
                 role: m.role,
                 content: m.content,
+                productCards: m.productCards,
               })),
             }),
           });

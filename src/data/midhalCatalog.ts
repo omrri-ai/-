@@ -886,9 +886,10 @@ const RAW_MIDHAL_CATALOG: CatalogItem[] = [
     id: 'zaf_1',
     name: 'بكج الزعفران الخاص',
     category: 'الزعفران',
-    displayedCardPrice: 40,
+    displayedCardPrice: 65,
     overallAvailability: 'متوفر',
-    variants: [{ variantName: 'بكج الزعفران الخاص', price: 40, priceDisplay: '40 ريال', inStock: true }],
+    notes: '6 جرام = 65 ريال',
+    variants: [{ variantName: '6 جرام', weightGrams: 6, displayedWeight: '6 جرام', price: 65, priceDisplay: '65 ريال', inStock: true }],
   },
   {
     id: 'zaf_2',
@@ -904,16 +905,23 @@ const RAW_MIDHAL_CATALOG: CatalogItem[] = [
     category: 'الزعفران',
     displayedCardPrice: 45,
     overallAvailability: 'متوفر',
-    variants: [{ variantName: 'زعفران إيراني سوبر نقيل', price: 45, priceDisplay: '45 ريال', inStock: true }],
+    notes: '5 جرام = 45 ريال، 10 جرام = 90 ريال',
+    variants: [
+      { variantName: '5 جرام', weightGrams: 5, displayedWeight: '5 جرام', price: 45, priceDisplay: '45 ريال', inStock: true },
+      { variantName: '10 جرام', weightGrams: 10, displayedWeight: '10 جرام', price: 90, priceDisplay: '90 ريال', inStock: true },
+    ],
   },
   {
     id: 'zaf_4',
-    name: 'زعفران مغربي، شامل الضريبة',
+    name: 'زعفران مغربي',
     category: 'الزعفران',
-    displayedCardPrice: 150,
+    displayedCardPrice: 75,
     overallAvailability: 'متوفر',
-    notes: 'شامل الضريبة',
-    variants: [{ variantName: 'زعفران مغربي', price: 150, priceDisplay: '150 ريال', inStock: true, notes: 'شامل الضريبة' }],
+    notes: '5 جرام = 75 ريال، 10 جرام = 150 ريال (شامل الضريبة)',
+    variants: [
+      { variantName: '5 جرام', weightGrams: 5, displayedWeight: '5 جرام', price: 75, priceDisplay: '75 ريال', inStock: true },
+      { variantName: '10 جرام', weightGrams: 10, displayedWeight: '10 جرام', price: 150, priceDisplay: '150 ريال', inStock: true, notes: 'شامل الضريبة' },
+    ],
   },
 
   // الإكسسوارات وشنط الهدايا

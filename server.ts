@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import { createServer as createViteServer } from 'vite';
 import { MidhalKnowledgeBase, ProductCardData, CustomerMessage } from './src/types.ts';
 import { MIDHAL_OFFICIAL_CATALOG, searchCatalog, findOptionsByBudget } from './src/data/midhalCatalog.ts';
 import { PERFUME_PROFILES, getVerifiedMediaForProduct } from './src/data/officialStoreData.ts';
@@ -54,20 +55,25 @@ let midhalKnowledge: MidhalKnowledgeBase = {
   customKnowledgeNotes: 'تم ربط واعتماد ملف مدهال-الطيب-البيانات-الكاملة.pdf كمرجع تجاري ورسمي وحيد وأساسي للأسعار والأوزان والكميات والخيارات.',
 };
 
-// Lazy initialization of Gemini client
+// Single GEMINI_API_KEY client managed directly by Google AI Studio
+let geminiClientInstance: GoogleGenAI | null = null;
+
 function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not configured in environment');
+    throw new Error('متغير GEMINI_API_KEY غير متوفر في بيئة التشغيل');
   }
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
+  if (!geminiClientInstance) {
+    geminiClientInstance = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
       },
-    },
-  });
+    });
+  }
+  return geminiClientInstance;
 }
 
 function buildCatalogTextRepresentation(): string {
@@ -80,7 +86,8 @@ function buildCatalogTextRepresentation(): string {
     text += '\n  الخيارات والأوزان والأسعار المعتمدة:';
     for (const v of item.variants) {
       const stockStr = v.inStock ? 'متوفر' : 'غير متوفر (نفدت الكمية / مخلص حالياً)';
-      text += `\n   - الخيار: "${v.variantName}" | الوزن: ${v.displayedWeight || 'غير محدد'} | السعر: ${v.priceDisplay} | الحالة: ${stockStr}`;
+      const weightStr = v.displayedWeight || (v.weightGrams ? `${v.weightGrams} جرام` : 'غير محدد');
+      text += `\n   - الخيار: "${v.variantName}" | الوزن: ${weightStr} | السعر: ${v.priceDisplay} | الحالة: ${stockStr}`;
       if (v.notes) text += ` (${v.notes})`;
     }
   }
@@ -115,109 +122,161 @@ function buildSiteMapTextRepresentation(): string {
 const CATALOG_TEXT_REPRESENTATION = buildCatalogTextRepresentation();
 const STORE_SITEMAP_REPRESENTATION = buildSiteMapTextRepresentation();
 
-function buildSystemInstruction(knowledge: MidhalKnowledgeBase): string {
+function buildSystemInstruction(knowledge: MidhalKnowledgeBase, isFollowUp: boolean = false): string {
+  const followUpDirective = isFollowUp
+    ? `
+══════════════════════════════════════════════════
+⚠️ تنبيه صارم لحالة الرسالة الحالية (رسالة متابعة وليست بداية محادثة):
+══════════════════════════════════════════════════
+- ممنوع منعاً باتاً البدء بعبارات ترحيبية أو ديباجات أو مجاملات مكررة مثل:
+  ("حيّاك الله"، "يا هلا والله"، "أبشر بسعدك طال عمرك"، "سم طال عمرك"، "عساك على القوة"، "يسعدنا خدمتك"... إلخ).
+- ادخل في صلب الإجابة مباشرة باختصار وطبيعية:
+  * إذا سأل عن السعر أو المقاس: أجب مباشرة (مثال: "الأوقية بـ35 ريال، والثمن بـ125 ريال.").
+  * إذا قال "طيب الكيلو؟": أجب مباشرة (مثال: "سعر الكيلو 800 ريال.").
+  * إذا سأل عن الزعفران أو غيّر الموضوع: أجب مباشرة بالبيانات المؤكدة دون ديباجة ولا تذكر العود القديم.
+`
+    : `
+- إذا كانت هذه الرسالة الأولى للعميل في بداية المحادثة: رحّب به باختصار ودود وسعودي طبيعي دون إطالة.
+`;
+
   return `
-أنت موظف خدمة عملاء ومبيعات حقيقي، خبير ومستشار فاهم في متجر "مدهال الطيب" للعود والطيب الفاخر في المملكة العربية السعودية.
-أسلوبك سعودي مهذب، أصيل، فاهم، لطيف ومحترم جداً (مثل: حيّاك الله، يا هلا والله، أبشر بسعدك، سم، الله يسعدك).
+أنت مستشار مبيعات وخدمة عملاء خبير في متجر "مدهال الطيب" للعود والطيب الفاخر بالمملكة العربية السعودية.
+أسلوبك: ودود + رسمي بشكل خفيف + طبيعي + مختصر.
+(غير جاف، وغير مبالغ في المجاملة والتكلف).
+
+${followUpDirective}
 
 ══════════════════════════════════════════════════
 المرجع التجاري الأساسي الصارم:
 ══════════════════════════════════════════════════
-الكتالوج الرسمي المعتمد أدناه هو المرجع التجاري الوحيد للأسعار والكميات والأوزان والخيارات التجارية.
-أي معلومة سعرية أو كمية يجب أن تؤخذ حصراً ومباشرة من جدول الكتالوج الرسمي.
+الكتالوج الرسمي المعتمد أدناه هو المرجع التجاري الوحيد والنهائي للأسعار والكميات والأوزان والخيارات التجارية.
+أي معلومة سعرية أو كمية أو توفر يجب أن تؤخذ حصراً ومباشرة من جدول الكتالوج الرسمي. لا تخترع سعراً أو وزناً أو عرضاً من عندك إطلاقاً.
 
 ══════════════════════════════════════════════════
-قواعد الأسلوب والبيع الذكي والربط بالمتجر (12 قاعدة إلزامية ومحكمة):
+قواعد فهم العميل وسلوك المحادثة وأسلوب الرد (قواعد صارمة وإلزامية):
 ══════════════════════════════════════════════════
 
-1. أولوية طلب العميل المحدد (مقدمة بصرامة على نظام الترشيحات والـ 3 بطاقات):
-   - إذا حدد العميل منتجاً معيناً باسمه أو صفته (مثل: "أبي تايقر ذهبي"، "أبي تايقر ذهبي كيلو"، "أبي شنطة بيج ثمن"، "أبي شنطة بيج"، "أبي عطر Royal"، "أبي موروكي التميز"، "أبي سيوفي كينغ"، "أبي بكج التايقر"، "أبي زعفران إيراني"):
-     * اعرض هذا المنتج المحدد فقط في إجابتك وفي بطاقات المنتجات (CARDS)!
-     * ممنوع منعاً باتاً إضافة منتجات أخرى مختلفة أو اقتراح أنواع ثانية من عندك لمجرد ملء 3 بطاقات!
-     * الـ 3 خيارات تُستخدم فقط عندما يطلب العميل ترشيحاً مفتوحاً ("رشح لي"، "وش تنصحني") وليس عندما يحدد المنتج بنفسه.
-     * إذا كان للمنتج المحدد عدة أوزان/مقاسات متوفرة (مثل أوقية، ثمن، ربع، نصف، كيلو)، يمكنك عرض أوزان نفس هذا المنتج فقط.
-     * إذا حدد العميل وزناً معيناً (مثل "كيلو"): اعرض خيار الكيلو لهذا المنتج بالذات.
-     * للشنط الفارغة: جميع الشنط جلدية. إذا طلب "شنطة بيج ثمن"، اعرض الشنطة الجلدية الفارغة باللون البيج مقاس ثمن بسعر 20 ريال فقط. ولا تستبدلها بشنطة سوداء أو خضراء تلقائياً. وإذا لم يتوفر المقاس المطلوب باللون البيج، اعرض المقاسات المتوفرة من نفس اللون البيج أولاً واشرح له ذلك، مع تقديم اقتراحات تفاعلية.
+1. افهم نية العميل قبل الرد:
+   - لا تتعامل مع كل رسالة على أنها طلب مستقل معزول، ولا تتعامل معها أيضاً على أنها استمرار إجباري للموضوع السابق.
+   - في كل رسالة، حدد:
+     * ما المنتج أو الفئة التي يتحدث عنها العميل الآن؟
+     * ما الذي كان يتحدث عنه في الرسائل السابقة؟
+     * هل الرسالة الحالية متابعة للموضوع السابق؟
+     * أم أن العميل غيّر الموضوع؟
+     * ما الشيء الذي طلبه العميل تحديداً؟
+     * ما الشيء الذي لم يطلبه؟
+   - إذا كانت الرسالة متابعة، حافظ على السياق.
+   - إذا غيّر العميل الموضوع بوضوح، انتقل للموضوع الجديد طبيعياً وتلقائياً ولا تتمسك بالموضوع القديم.
 
-2. عدم افتراض نوع العود (قاعدة صارمة - لا تفترض نوع العود):
-   - إذا قال العميل: "أبي عود للمجلس"، "أبي عود للبيت"، "أبي عود فواح"، أو طلب "عود" بشكل عام دون تحديد النوع (طبيعي أم محسن):
-     * يمنع إطلاقاً افتراض أنه يريد عود طبيعي تلقائياً!
-     * يمنع عرض منتجات العود الطبيعي فقط لمجرد استخدام كلمة "عود".
-     * افهم الطلب أولاً، وتفهم أنه طلب عوداً، وإذا كان تحديد النوع مهماً لاختيار المنتج، اسأله سؤالاً توضيحياً قصيراً ومباشراً مثل:
-       "تفضله طبيعي أو محسن؟ وإذا ما عندك تفضيل، أقدر أرشح لك من الاثنين."
-     * ولا تعرض منتجات العود الطبيعي فقط لمجرد أن العميل قال "عود".
-   - إذا قال العميل صراحة "أبي عود طبيعي" أو "أبي عود طبيعي للمجلس": ابحث وعرض في العود الطبيعي فقط.
-   - إذا قال العميل صراحة "أبي عود محسن": ابحث وعرض في العود المحسن فقط.
-   - إذا طلب العميل منتجاً محددات بخصوصيته أو اسمه (مثل "تايقر ذهبي"، "موروكي التميز"): التزم بالمنتج المطلوب فقط ولا تضف أنواعاً أخرى بلا سبب.
+2. لا تستنتج منتجات لم يطلبها العميل إطلاقاً (قاعدة أساسية وحاسمة):
+   - إذا قال العميل: "أبي عود بخور" ثم: "أبيه للمكتب والسيارة".
+     المقصود حصراً: عود/بخور يناسب المكتب والسيارة.
+     ممنوع منعاً باتاً أن تعرض:
+     * دهن عود
+     * عطر
+     * مسك
+     * زعفران
+     * إكسسوارات أو مباخر
+     إلا إذا طلب العميل هذه الأشياء صراحة أو سأل عنها!
+   - لا تعتبر كلمة "مكتب" أو "سيارة" أو "مجلس" طلباً لمنتجات أخرى.
+   - إذا لم توجد معلومة مؤكدة عن منتج مخصص للسيارة، قل ذلك بوضوح وصراحة (مثل: العود يحتاج جمر ومبخرة فيناسب الأماكن الثابتة كالمكتب، ولا نوفر منتجاً مخصصاً للسيارة حالياً)، ولا تخترع منتجاً.
 
-3. تصحيح بيانات الشنط (شنط جلدية فقط):
-   - جميع الشنط الموجودة في متجر مدهال الطيب هي شنط جلدية فاخرة.
-   - لا توجد شنط قماش ضمن بيانات المتجر إطلاقاً.
-   - لا تقل للعميل "شنط قماش" ولا تصف أي شنطة بأنها قماش.
-   - استخدم وصف جلد / شنطة جلدية دائماً.
-   - الشنط الفارغة أيضاً جلد، وليست قماش.
-   - الشنط الفارغة متوفرة بالجلد وبأربعة ألوان رسمية: (جملي، بيج، أخضر، أسود).
-   - مقاسات وأسعار الشنط الجلدية الفارغة:
-     * ثمن كيلو (125 جم): 20 ريال
-     * ربع كيلو (250 جم): 25 ريال
-     * نصف كيلو (500 جم): 30 ريال
-     * كيلو (1000 جم): 35 ريال
-   - إذا قال العميل "أبي شنطة": افهم أنه يقصد شنطة جلدية من منتجات مدهال الطيب.
-   - إذا قال "شنطة بيج": ابحث عن الشنط الجلدية باللون البيج.
-   - إذا قال "شنطة بيج ثمن": ابحث عن شنطة جلدية بيج بالمقاس/الوزن المطلوب (ثمن كيلو بسعر 20 ريال).
-   - لا تخترع خامة أو منتجاً غير موجود.
+3. افصل بين "الاستخدام" و"المنتج":
+   - كلمات مثل: (البيت، المجلس، المكتب، السيارة، الملابس، الشعر، المناسبات، الإهداء) تصف مكان أو غرض الاستخدام، وليست اسم منتج جديد.
+   - "أبي عود للمكتب": لا تحولها تلقائياً إلى عطر للمكتب أو دهن عود للمكتب. بل ابحث عن العود المناسب للغرض المطلوب (مثل التايقر أو المروكي للاستخدام المكتبي واليومي).
+   - إذا قال العميل بشكل غامض: "أبي شيء للمكتب" دون تحديد منتج، هنا فقط اسأل سؤالاً واحداً مفيداً: "أكيد، تفضله عود، عطر، أو دهن عود؟".
 
-4. عقلية البائع وفهم احتياج العميل والتوضيح دون افتراضات:
-   - لا تفترض معلومات لم يذكرها العميل إذا كان الافتراض سيغير نتيجة البحث.
-   - افهم الطلب أولاً، ثم اسأل سؤالاً توضيحياً قصيراً عند الحاجة، أو اعرض الخيارات المناسبة إذا كان يمكن ذلك بدون افتراض.
+4. حافظ على موضوع المحادثة حتى يتغير:
+   - العميل: "أبي عود محسن" ← المساعد يعرض خيارات العود المحسن.
+   - العميل: "أبيه للمكتب" ← المقصود: عود محسن للمكتب.
+   - العميل: "وش الأرخص؟" ← المقصود: أرخص عود محسن من الخيارات والسياق الحالي.
+   - العميل: "طيب الكيلو؟" ← المقصود: كيلو من المنتج الذي نتحدث عنه (التايقر الكيلو 800 ريال)، وليس البحث عن كيلو لجميع المنتجات.
+   - أما إذا قال: "عندكم زعفران؟" ← هنا تغيّر الموضوع إلى الزعفران، ويبدأ المساعد موضوع الزعفران مباشرة دون ذكر العود أو المجلس القديم.
 
-5. عطور مدهال الطيب ومستوحياتها والملامح العطرية:
-   - السعة الصحيحة لجميع العطور: 100 مل.
-   - السعر الرسمي لكل عطر: 75 ريال (مخفض من 125 ريال).
-   - قائمة العطور واستيحائها الرسمي:
-     * رويال (Royal) ← مستوحى من Romford (نفدت الكمية حالياً).
-     * لكجري (Luxury) ← مستوحى من Tobacco (متوفر - صفحة مستقلة).
-     * اروجنت (Arrogant) ← مستوحى من Memo (متوفر - صفحة مستقلة).
-     * اتنشن (Attention) ← مستوحى من Dior (متوفر).
-     * لورد (Lord) ← مستوحى من Tuxedo (متوفر).
-     * ريتش (Rich) ← مستوحى من Nishane (نفدت الكمية حالياً).
-     * مارفل (Marvel) ← مستوحى من Van Cleef (متوفر - صفحة مستقلة).
-     * ماجيك (Magic) ← مستوحى من Armani (نفدت الكمية حالياً - صفحة مستقلة).
-     * اليجنت (Elegant) ← مستوحى من Guerlain (متوفر).
-     * فلفيت روز (Velvet Rose) ← مستوحى من Guerlain Paris (متوفر - صفحة مستقلة).
-     * بيلا (Bella) ← مستوحى من Chanel (متوفر).
-     * فلورا (Flora) ← مستوحى من Parfums de Marly Valaya (متوفر).
+5. افهم الضمائر والإشارات بذكاء وبدون طلب إعادة:
+   - افهم الضمائر والإشارات التالية حسب آخر موضوع ومنتجات تم ذكرها أو عرضها:
+     (سعره، سعرها، هذا، هذي، الثاني، الأول، بينهم، الأرخص، الأغلى، فيه أكبر؟، طيب النص؟، طيب الكيلو؟، طيب الثمن؟، وش الفرق؟، وش تنصحني؟، غيره، عندكم مثله؟، أبي نفس هذا).
+   - لا تطلب من العميل إعادة اسم المنتج إذا كان المقصود واضحاً من السياق.
+   - إذا قال: "أبي تايقر" ثم "كم سعره؟" ← افهم مباشرة عود تايقر كمبودي المحسن، واذكر أسعار أوزانه وأخرج بطاقته فوراً دون سؤاله أي منتج يقصد.
 
-6. العروض الحالية بالموقع (قسم العروض المعتمدة):
-   - إذا سأل العميل عاماً: "عندكم عروض؟" أو "وش العروض المتوفرة؟" أو "وين عروضكم؟":
-     وجّهه إلى [قسم العروض والتخفيضات](https://medhaloud.com/العروض/c1691136638) واعرض العروض الرسمية المؤكدة:
-     * بكج التايقر: ثمن كيلو عود كمبودي تايقر محسن فاخر بـ 150 ريال.
-     * عرض الدقة الكمبودية: دقة عود كمبودي طبيعي محسن فاخر بـ 149 ريال.
-     * بكج السيوفي الكنق: أوقية سيوفي كنج فيتنامي طبيعي مع هدايا تولة ومبخرة بـ 285 ريال.
-     * عروض تخفيض العطور الفاخرة: جميع العطور سعة 100 مل بسعر موحد 75 ريال بدلاً من 125 ريال.
+6. المنتجات التي عرضها المساعد جزء لا يتجزأ من السياق:
+   - إذا عرض المساعد منتجات ثم قال العميل: "قارن بينهم" ← قارن بدقة بين تلك المنتجات المذكورة أو المعروضة في المحادثة السابقة من حيث الرائحة، الثبات، الاستخدام، والأسعار المعتمدة، وأخرج كروتها.
+   - إذا قال العميل: "وش الأرخص؟" ← يقارن المنتجات التي كانت ضمن السياق الحالي ويحدد الأرخص وسعره.
+   - إذا قال العميل: "الثاني" ← يفهم أنه المنتج الثاني الذي عرضه المساعد.
+   - إذا قال العميل: "أبي منه ثمن" ← يفهم المنتج المقصود من السياق ويبحث عن خيار الثمن لذلك المنتج فقط.
 
-7. نظام الروابط والتنقل العام لكامل متجر مدهال الطيب (Store Navigation Hierarchy):
-   - التزم بسلم أولويات الروابط التالي بدقة متناهية:
-     1. الأولوية 1: منتج له صفحة مستقلة ← استخدم رابط صفحة المنتج نفسها (مثال: عود تايقر محسن: https://medhaloud.com/عود-كمبودي-محسن-التايقر/p1585084528، عطر لكجري: https://medhaloud.com/luxury/p1907815091، موري نجلاند: https://medhaloud.com/عود-موري-هندي-نجلاند-سوبر-ومرتفع/p1115139655).
-     2. الأولوية 2: عرض له صفحة مستقلة ← استخدم رابط العرض نفسه (مثال: بكج التايقر: https://medhaloud.com/بكج-التايقر/p1037054180، بكج السيوفي: https://medhaloud.com/بكج-السيوفي-الكنق/p2018823084، عرض الدقة الكمبودية: https://medhaloud.com/عرض-الدقة-الكمبودية/p234567457).
-     3. الأولوية 3: تصنيف أو مجموعة فرعية محددة ← استخدم رابط التصنيف نفسه (مثال: [قسم شنط البخور](https://medhaloud.com/شنط-البخور/c1820942889)، علب البخور https://medhaloud.com/علب-البخور/c937881141).
-     4. الأولوية 4: قسم رئيسي ← استخدم رابط القسم نفسه.
-     5. الأولوية 5: حالة الصنف بدون صفحة مستقلة (مثل الشنط الفارغة): اعرض كافة معلوماته، واستخدم رابط قسم شنط البخور مع التوضيح الصريح في الرد أنه رابط القسم الأقرب وليس صفحة منتج مستقلة.
+7. لا تستخدم "الأفضل" كحقيقة مطلقة:
+   - لا تقل: "هذا أفضل عود عندنا" إلا إذا كان هناك مصدر رسمي موثق يثبت ذلك.
+   - بدلاً من ذلك استخدم عبارات دقيقة:
+     "إذا تبيه للمجلس، هذا خيار مناسب ومجمل حسب وصفه وثباته."
+     "إذا تهمك الفوحان والنكهة السويتية، عندك هذا الخيار."
+   - الترشيح يعتمد على معلومات مؤكدة وموثقة في الكتالوج.
 
-8. صور المنتجات الرسمية الحقيقية:
-   - كافة الأقسام يجب أن تستخدم الصور الرسمية المعتمدة من المتجر وسيرفراته CDN.
-   - ممنوع منعاً باتاً استخدام Placeholder أو صور مولدة بالذكاء الاصطناعي.
+8. أسلوب الكلام وضبط الترحيب (ودود + رسمي خفيف + طبيعي + مختصر):
+   - ممنوع منعاً باتاً أن تبدأ كل رد بعبارات ترحيبية أو إنشائية مكررة مثل:
+     "حيّاك الله يا الغالي وبياك، يا هلا والله ومرحباً بك، أبشر بسعدك طال عمرك، سم وتفضل..."
+   - هذه العبارات يمكن استخدامها باختصار في بداية المحادثة فقط (أول رسالة).
+   - في جميع رسائل المتابعة: تكون الردود طبيعية ومباشرة في صلب الإجابة.
+   - مثال:
+     بدل: "أبشر بسعدك طال عمرك! بالنسبة لعود تايقر كمبودي المحسن..."
+     استخدم: "أكيد، تايقر كمبودي المحسن متوفر عندنا. الأوقية 30 ريال، وإذا تبي أعطيك باقي الأوزان أطلعها لك."
+     ثم إذا قال: "طيب الكيلو؟"
+     يكون الرد: "الكيلو 800 ريال." مباشرة دون ترحيب جديد.
 
-9. بطاقات المنتجات المخرجة (CARDS):
-   - للطلبات المحددة: أخرج كروت المنتج المطلوب فقط (أو أوزانه/مقاساته لنفس المنتج).
-   - للترشيح المفتوح: أخرج بحد أقصى 3 كروت مختلفة.
-   - صيغة السطر: CARDS: [{"name": "اسم المنتج المطابق", "variant": "الوزن أو السعة أو المقاس", "price": السعر_رقمياً, "description": "وصف موجز موثق"}]
+9. لا تكرر المعلومات:
+   - إذا سبق أن ذكرت تفاصيل المنتج، ثم قال العميل: "طيب الثمن؟"، لا تعيد شرح المنتج بالكامل، قل فقط: "الثمن 125 ريال." وأخرج الكرت المناسب.
+   - إذا قال: "وش الفرق بينه وبين موروكي؟"، أعط المقارنة المطلوبة فقط دون إعادة ديباجة الكتالوج.
 
-10. الاقتراحات التفاعلية (SUGGESTIONS - بحد أقصى 3 فقط):
-    - أضف سطراً مستقلاً: SUGGESTIONS: ["اقتراح 1", "اقتراح 2", "اقتراح 3"]
+10. الرد على قدر السؤال (تجنب الإطالة التسويقية):
+    - السؤال القصير ← جواب قصير.
+    - السؤال التفصيلي ← جواب تفصيلي.
+    - لا تجعل كل إجابة فقرة تسويقية طويلة.
+    - لا تعرض روابط وأقساماً ومنتجات إضافية إذا لم تكن مرتبطة مباشرة بالسؤال.
+    - لا تختم كل رد بعبارات آلية مكررة مثل "إذا حاب أقدر...".
 
-11. صفر اختلاق (قاعدة أمانة صارمة):
-    - لا تخترع أسعاراً أو أوزاناً أو سعات أو روابط أو توفر من عندك إطلاقاً.
+11. لا توسع الطلب من تلقاء نفسك:
+    - إذا قال: "أبي عود" ← لا تعرض عطوراً ولا دهن عود ولا بخوراً ولا زعفراناً ولا شنطاً.
+    - إذا كان الطلب عاماً، اسأل سؤالاً واحداً مفيداً لتحديده: "تفضله طبيعي أو محسن؟".
+    - إذا قال: "أبي عود للمجلس" ← لا تفترض أنه طبيعي، بل اسأله: "تفضله طبيعي أو محسن؟"، وإذا قال: "محسن"، التزم بالعود المحسن فقط.
+
+12. إذا غيّر العميل الموضوع بوضوح:
+    - لا تتمسك بالموضوع القديم إطلاقاً.
+    - مثال: العميل سأل: "أبي عود للمجلس" ثم قال: "عندكم زعفران؟" ← الرد يكون عن الزعفران فوراً وببياناته المؤكدة، دون إعادة الحديث عن العود ولا ربطه بالمجلس القديم.
+
+13. التعامل مع الغموض:
+    - لا تخمّن إذا كان التخمين قد يؤدي إلى منتج من فئة مختلفة.
+    - اسأل سؤالاً واحداً فقط لتوضيح الطلب.
+    - أما إذا كان السياق واضحاً فلا تسأل وأجب مباشرة.
+
+14. الشنط الجلدية الفارغة:
+    - جميع الشنط في متجر مدهال الطيب جلدية فاخرة (جملي، بيج، أخضر، أسود).
+    - إذا قال العميل: "أبي شنطة" ثم: "أبيها فاضية" ← المطلوب شنطة جلدية فارغة لحفظ العود بدون محتويات (ثمن كيلو: 20 ريال، ربع كيلو: 25 ريال، نصف كيلو: 30 ريال، كيلو: 35 ريال). وليس بكج أو شنطة تحتوي على منتجات.
+
+15. عطور مدهال الطيب:
+    - السعة: 100 مل موحدة لجميع العطور.
+    - السعر الرسمي: 75 ريال (مخفض من 125 ريال).
+    - قائمة الاستيحاء المعتمدة: رويال (Romford - نفد)، لكجري (Tobacco)، اروجنت (Memo)، اتنشن (Dior)، لورد (Tuxedo)، ريتش (Nishane - نفد)، مارفل (Van Cleef)، ماجيك (Armani - نفد)، اليجنت (Guerlain)، فلفيت روز (Guerlain Paris)، بيلا (Chanel)، فلورا (Valaya).
+
+16. بيانات الزعفران التجارية المؤكدة والمثبتة (بيانات حاسمة):
+    - الزعفران الإيراني (سوبر نقيل):
+      * 5 جرام = 45 ريال (أبو 45 هو 5 جرام)
+      * 10 جرام = 90 ريال
+    - الزعفران المغربي (شامل الضريبة):
+      * 5 جرام = 75 ريال
+      * 10 جرام = 150 ريال
+    - بكج الزعفران الخاص:
+      * 6 جرام = 65 ريال
+    ⚠️ تنبيه حاسم: هذه الأوزان والأسعار بيانات تجارية مؤكدة وثابتة؛ لا تقل بعد الآن إن الوزن غير محدد لهذه المنتجات!
+    - إذا قال: "زعفران إيراني" ← "الإيراني متوفر 5 جرام بـ45 ريال، و10 جرام بـ90 ريال."
+    - إذا قال: "أبو 45 كم جرام؟" ← الإجابة المباشرة: "5 جرام."
+    - إذا قال: "المغربي بكم؟" أو "نبغى زعفران مغربي" ← الإجابة المباشرة: "المغربي 5 جرام بـ75 ريال، و10 جرام بـ150 ريال."
+    - إذا قال: "بكج الزعفران الخاص كم وزنه؟" ← الإجابة المباشرة: "6 جرام وسعره 65 ريال."
+
+17. نظام إخراج الكروت:
+    - إذا طلب العميل منتجاً محدداً أو وزناً محدداً: أخرج كرت المنتج المطلوب فقط.
+    - إذا طلب ترشيحاً مفتوحاً أو مقارنة: أخرج بطاقات الخيارات المعنية (بحد أقصى 3 كروت).
+    - صيغة الكروت: CARDS: [{"name": "اسم المنتج المطابق", "variant": "الوزن أو السعة أو المقاس", "price": السعر_رقمياً, "description": "وصف موجز موثق"}]
+    (لا تضف أي وسم أو نص SUGGESTIONS في ردك؛ النظام البرمجي للواجهة يحدد الاقتراحات المناسبة تلقائياً حسب السياق).
 
 ══════════════════════════════════════════════════
 خريطة أقسام وتصنيفات وروابط متجر مدهال الطيب المعتمدة:
@@ -242,7 +301,9 @@ function extractIntentAndContext(userMessage: string, history: Array<{ role: str
   let currentSubject: string | null = null;
 
   // Intent detection
-  if (text.includes('تنصحني') || text.includes('أبي') || text.includes('ابي') || text.includes('اريد') || text.includes('أريد') || text.includes('رشح') || text.includes('افضل') || text.includes('أفضل')) {
+  if (text.includes('قارن') || text.includes('بينهم')) {
+    intent = 'مقارنة بين منتجات';
+  } else if (text.includes('تنصحني') || text.includes('أبي') || text.includes('ابي') || text.includes('اريد') || text.includes('أريد') || text.includes('رشح') || text.includes('افضل') || text.includes('أفضل')) {
     intent = 'طلب ترشيح واختيار';
   } else if (text.includes('سعر') || text.includes('كم') || text.includes('بكم') || text.includes('سعره')) {
     intent = 'استفسار عن السعر';
@@ -278,9 +339,18 @@ function extractIntentAndContext(userMessage: string, history: Array<{ role: str
     budget = `${budgetMatch[1]} ريال`;
   }
 
-  // Find subject from context if user says "هذا" or "سعره"
-  if (text.includes('سعره') || text.includes('هذا') || text.includes('فرقه')) {
-    currentSubject = 'مرتبط بآخر منتج أو موضوع تم ذكره في المحادثة (فهم السياق)';
+  // Find subject from context if user says "هذا" or "سعره" or follow-ups
+  const historyText = history.map((h) => h.content || '').join(' ').toLowerCase();
+  if (text.includes('سعره') || text.includes('هذا') || text.includes('فرقه') || text.includes('قارن') || text.includes('الأرخص') || text.includes('الكيلو')) {
+    if (historyText.includes('تايقر') || historyText.includes('تايجر')) {
+      currentSubject = 'عود تايقر كمبودي';
+    } else if (historyText.includes('التميز') || historyText.includes('موروكي')) {
+      currentSubject = 'موروكي التميز';
+    } else if (historyText.includes('اهداء') || historyText.includes('إهداء')) {
+      currentSubject = 'خيارات الإهداء والهدايا';
+    } else {
+      currentSubject = 'مرتبط بآخر منتج أو موضوع تم ذكره في المحادثة (فهم السياق)';
+    }
   }
 
   return {
@@ -349,23 +419,32 @@ interface GeminiReplyResult {
 }
 
 async function generateGeminiReply(
-  ai: GoogleGenAI,
   contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
-  systemInstruction: string
+  systemInstruction: string,
+  isComplexRequest: boolean = false
 ): Promise<GeminiReplyResult> {
-  // Allowed models with fallback hierarchy (gemini-3.5-flash-lite primary)
-  const models = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+  const ai = getGeminiClient();
+
+  // Model Fallback Hierarchy (Strictly using single GEMINI_API_KEY):
+  // 1. gemini-3.1-flash-lite: Fast, lightweight, lowest cost & separate quota for basic requests
+  // 2. gemini-3.8-flash: Standard tier with high quality and reasoning
+  // 3. gemini-3.1-pro-preview: Deep reasoning and complex query fallback
+  // 4. gemini-flash-latest: Stable fallback alias
+  const models = isComplexRequest
+    ? ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite', 'gemini-flash-latest']
+    : ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-flash-latest'];
   let lastError: any = null;
 
   for (let i = 0; i < models.length; i++) {
     const model = models[i];
+
     try {
       const response = await ai.models.generateContent({
         model,
         contents,
         config: {
           systemInstruction,
-          temperature: 0.6,
+          temperature: 0.5,
         },
       });
 
@@ -374,6 +453,11 @@ async function generateGeminiReply(
         const promptTokens = usage?.promptTokenCount || 0;
         const candidateTokens = usage?.candidatesTokenCount || 0;
         const totalTokens = usage?.totalTokenCount || (promptTokens + candidateTokens);
+
+        if (i > 0) {
+          console.log(`[Model Fallback Success] Fallback succeeded with model: ${model}`);
+          analytics.recordFallback(models[0], model, `Switched from ${models[i - 1]} to ${model}`);
+        }
 
         return {
           text: response.text,
@@ -386,67 +470,125 @@ async function generateGeminiReply(
     } catch (err: any) {
       lastError = err;
       const errMsg = err?.message || String(err);
-      console.warn(`[Gemini API] model: ${model} encountered: ${errMsg}`);
+      console.warn(`[Model Fallback] Model ${model} encountered error: ${errMsg.slice(0, 120)}`);
 
       const nextModel = models[i + 1];
       if (nextModel) {
         analytics.recordFallback(model, nextModel, errMsg.slice(0, 100));
       }
       if (errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('Quota')) {
-        analytics.recordError('429', errMsg);
+        analytics.recordError('429', `${model}: quota exceeded`);
       } else {
-        analytics.recordError('other', errMsg);
+        analytics.recordError('other', `${model}: ${errMsg.slice(0, 80)}`);
       }
-
-      // If transient 503 or overload, retry once after short delay
-      if (errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('UNAVAILABLE')) {
-        try {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          const retryResponse = await ai.models.generateContent({
-            model,
-            contents,
-            config: {
-              systemInstruction,
-              temperature: 0.6,
-            },
-          });
-          if (retryResponse.text) {
-            const usage = (retryResponse as any).usageMetadata;
-            const promptTokens = usage?.promptTokenCount || 0;
-            const candidateTokens = usage?.candidatesTokenCount || 0;
-            const totalTokens = usage?.totalTokenCount || (promptTokens + candidateTokens);
-
-            return {
-              text: retryResponse.text,
-              modelUsed: model,
-              promptTokens,
-              candidateTokens,
-              totalTokens,
-            };
-          }
-        } catch (retryErr: any) {
-          lastError = retryErr;
-        }
-      }
-      // On 429 or other errors, immediately proceed to next fallback model
+      // Continue loop to try next model in the fallback hierarchy with full context
     }
   }
 
   throw lastError || new Error('تعذر توليد الرد في الوقت الحالي');
 }
 
-// Helper to enforce exact single-product matching when user specifies a specific item
-function processProductCardsForQuery(userMessage: string, rawCards: ProductCardData[]): ProductCardData[] {
+// Helper to enforce exact product matching and maintain context across conversation turns
+function processProductCardsForQuery(
+  userMessage: string,
+  rawCards: ProductCardData[],
+  history: Array<{ role: string; content: string; productCards?: ProductCardData[] }> = []
+): ProductCardData[] {
   const normUser = userMessage.toLowerCase().trim();
 
-  // 1. Check Tiger Golden request ("تايقر ذهبي", "تايجر ذهبي")
-  if (normUser.includes('تايقر ذهبي') || normUser.includes('تايجر ذهبي')) {
+  // Extract recent context for follow-up resolutions
+  const recentHistoryText = history.map((h) => h.content || '').join(' ').toLowerCase();
+  const lastAssistantMsg = [...history].reverse().find((h) => h.role === 'assistant' || h.role === 'model');
+  const lastAssistantCards = lastAssistantMsg?.productCards || [];
+
+  const isFollowUp = 
+    normUser.includes('كم سعره') ||
+    normUser.includes('سعره') ||
+    normUser.includes('بكم') ||
+    normUser.includes('قارن') ||
+    normUser.includes('بينهم') ||
+    normUser.includes('الأرخص') ||
+    normUser.includes('الارخص') ||
+    normUser.includes('أرخص') ||
+    normUser.includes('ارخص') ||
+    normUser.includes('حجم أكبر') ||
+    normUser.includes('حجم اكبر') ||
+    normUser.includes('فيه أكبر') ||
+    normUser.includes('فيه اكبر') ||
+    normUser.includes('سعر الكيلو') ||
+    normUser.includes('النص') ||
+    normUser.includes('هذا') ||
+    normUser.includes('الثاني');
+
+  // Comparison request: "قارن بينهم"
+  if (normUser.includes('قارن') || normUser.includes('بينهم')) {
+    if (rawCards.length >= 2) return rawCards;
+    if (lastAssistantCards.length >= 2) return lastAssistantCards.slice(0, 3);
+
+    // If history mentions both Tiger and Tamayuz / Moroki
+    const hasTiger = recentHistoryText.includes('تايقر') || recentHistoryText.includes('تايجر');
+    const hasTamayuz = recentHistoryText.includes('التميز') || recentHistoryText.includes('موروكي');
+    if (hasTiger && hasTamayuz) {
+      const tigerItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_1');
+      const tamayuzItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_5');
+      const res: ProductCardData[] = [];
+      if (tigerItem) {
+        res.push({
+          id: tigerItem.id,
+          name: tigerItem.name,
+          category: tigerItem.category,
+          variant: tigerItem.variants[0]?.variantName || 'أوقية',
+          price: tigerItem.variants[0]?.price || 35,
+          priceDisplay: tigerItem.variants[0]?.priceDisplay || '35 ريال',
+          description: tigerItem.notes,
+          inStock: true,
+          imageUrl: tigerItem.imageUrl,
+          productUrl: tigerItem.productUrl,
+          hasDirectPage: true,
+        });
+      }
+      if (tamayuzItem) {
+        const v = tamayuzItem.variants[0];
+        res.push({
+          id: tamayuzItem.id,
+          name: tamayuzItem.name,
+          category: tamayuzItem.category,
+          variant: v?.displayedWeight || v?.variantName || 'أوقيتين',
+          price: v?.price || tamayuzItem.displayedCardPrice || 95,
+          priceDisplay: v?.priceDisplay || '95 ريال',
+          description: tamayuzItem.notes,
+          inStock: true,
+          imageUrl: tamayuzItem.imageUrl,
+          productUrl: tamayuzItem.productUrl,
+          hasDirectPage: true,
+        });
+      }
+      if (res.length >= 2) return res;
+    }
+  }
+
+  // 1. Check Tiger request ("تايقر ذهبي", "تايجر ذهبي", "تايقر كمبودي", "تايقر", "تايجر")
+  const refersToTiger = normUser.includes('تايقر') || normUser.includes('تايجر') ||
+    (isFollowUp && (recentHistoryText.includes('تايقر') || recentHistoryText.includes('تايجر')));
+
+  if (refersToTiger && !normUser.includes('قارن')) {
     const tigerItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_1');
     if (tigerItem) {
       let filteredVariants = tigerItem.variants;
-      if (normUser.includes('كيلو') && !normUser.includes('ثمن') && !normUser.includes('ربع') && !normUser.includes('نصف') && !normUser.includes('نص')) {
+      if (normUser.includes('كيلو') || normUser.includes('الكيلو')) {
         filteredVariants = tigerItem.variants.filter((v) => v.variantName === 'الكيلو' || v.weightGrams === 1000);
+      } else if (normUser.includes('نصف') || normUser.includes('نص')) {
+        filteredVariants = tigerItem.variants.filter((v) => v.variantName.includes('نصف') || v.weightGrams === 500);
+      } else if (normUser.includes('ربع')) {
+        filteredVariants = tigerItem.variants.filter((v) => v.variantName.includes('ربع') || v.weightGrams === 250);
+      } else if (normUser.includes('ثمن')) {
+        filteredVariants = tigerItem.variants.filter((v) => v.variantName.includes('ثمن') || v.weightGrams === 125);
+      } else if (normUser.includes('أوقية') || normUser.includes('اوقية')) {
+        filteredVariants = tigerItem.variants.filter((v) => v.variantName.includes('أوقية') || v.weightGrams === 28);
+      } else if (normUser.includes('حجم أكبر') || normUser.includes('فيه أكبر')) {
+        filteredVariants = tigerItem.variants.filter((v) => (v.weightGrams || 0) >= 500);
       }
+
       return filteredVariants.slice(0, 3).map((v) => ({
         id: `${tigerItem.id}_${v.variantName}`,
         name: `${tigerItem.name} - ${v.variantName}`,
@@ -463,8 +605,12 @@ function processProductCardsForQuery(userMessage: string, rawCards: ProductCardD
     }
   }
 
-  // 2. Check Empty Bag request ("شنطة بيج ثمن", "شنطة بيج", etc.)
-  if ((normUser.includes('شنطة') || normUser.includes('شنط')) && (normUser.includes('بيج') || normUser.includes('سوداء') || normUser.includes('أسود') || normUser.includes('فاضية') || normUser.includes('فارغة'))) {
+  // 2. Check Empty Bag request ("شنطة بيج ثمن", "شنطة بيج", "أبيها فاضية", etc.)
+  const refersToEmptyBag =
+    ((normUser.includes('شنطة') || normUser.includes('شنط')) && (normUser.includes('بيج') || normUser.includes('سوداء') || normUser.includes('أسود') || normUser.includes('فاضية') || normUser.includes('فارغة') || normUser.includes('جملي') || normUser.includes('أخضر'))) ||
+    ((normUser.includes('فاضية') || normUser.includes('فارغة')) && (recentHistoryText.includes('شنطة') || recentHistoryText.includes('شنط')));
+
+  if (refersToEmptyBag) {
     const bagItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.isEmptyBag);
     if (bagItem) {
       let selectedVariants = bagItem.variants;
@@ -499,7 +645,63 @@ function processProductCardsForQuery(userMessage: string, rawCards: ProductCardD
     }
   }
 
-  // 3. Check specific Perfume request ("عطر royal", "عطر لكجري", "عطر أروجنت", etc.)
+  // 3. Check Gifting request ("أبي الاهداء", "هدايا", "إهداء", "اهداء")
+  if (normUser.includes('اهداء') || normUser.includes('إهداء') || normUser.includes('هدية')) {
+    const giftingCandidates: ProductCardData[] = [];
+    const accItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'acc_1');
+    const tigerPackage = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'offer_1');
+    const seyoufiPackage = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'offer_3');
+
+    if (accItem) {
+      giftingCandidates.push({
+        id: accItem.id,
+        name: accItem.name,
+        category: accItem.category,
+        variant: accItem.variants[0]?.variantName || 'الشنطة',
+        price: accItem.displayedCardPrice || 95,
+        priceDisplay: accItem.variants[0]?.priceDisplay || '95 ريال',
+        description: 'شنطة بني أكريلك فاخرة مناسبة للإهداء',
+        inStock: true,
+        imageUrl: accItem.imageUrl,
+        productUrl: accItem.productUrl,
+        hasDirectPage: true,
+      });
+    }
+    if (tigerPackage) {
+      giftingCandidates.push({
+        id: tigerPackage.id,
+        name: tigerPackage.name,
+        category: tigerPackage.category,
+        variant: tigerPackage.variants[0]?.variantName || 'ثمن كيلو',
+        price: tigerPackage.displayedCardPrice || 150,
+        priceDisplay: tigerPackage.variants[0]?.priceDisplay || '150 ريال',
+        description: tigerPackage.notes,
+        inStock: true,
+        imageUrl: tigerPackage.imageUrl,
+        productUrl: tigerPackage.productUrl,
+        hasDirectPage: true,
+      });
+    }
+    if (seyoufiPackage) {
+      giftingCandidates.push({
+        id: seyoufiPackage.id,
+        name: seyoufiPackage.name,
+        category: seyoufiPackage.category,
+        variant: seyoufiPackage.variants[0]?.variantName || 'أوقية + هدايا',
+        price: seyoufiPackage.displayedCardPrice || 285,
+        priceDisplay: seyoufiPackage.variants[0]?.priceDisplay || '285 ريال',
+        description: seyoufiPackage.notes,
+        inStock: true,
+        imageUrl: seyoufiPackage.imageUrl,
+        productUrl: seyoufiPackage.productUrl,
+        hasDirectPage: true,
+      });
+    }
+
+    if (giftingCandidates.length > 0) return giftingCandidates;
+  }
+
+  // 4. Check specific Perfume request ("عطر royal", "عطر لكجري", "عطر أروجنت", etc.)
   if (normUser.includes('عطر') || normUser.includes('معطر')) {
     const specificPerfumes = MIDHAL_OFFICIAL_CATALOG.filter((c) => c.id.startsWith('perfume_indiv_'));
     const matched = specificPerfumes.filter((p) => normUser.includes(p.name.toLowerCase().replace('عطر ', '').replace('معطر ', '')) || normUser.includes(p.id.replace('perfume_indiv_', '')));
@@ -532,28 +734,37 @@ function processProductCardsForQuery(userMessage: string, rawCards: ProductCardD
     }
   }
 
-  // 4. Check Moroki Al-Tamayuz ("موروكي التميز", "مروكي التميز")
-  if (normUser.includes('التميز') || normUser.includes('موروكي التميز') || normUser.includes('مروكي التميز')) {
+  // 5. Check Moroki Al-Tamayuz ("موروكي التميز", "مروكي التميز")
+  const refersToTamayuz = normUser.includes('التميز') || 
+    (isFollowUp && recentHistoryText.includes('التميز') && !refersToTiger);
+
+  if (refersToTamayuz && !normUser.includes('قارن')) {
     const tamayuzItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_5');
     if (tamayuzItem) {
+      let filteredVariants = tamayuzItem.variants;
+      if (normUser.includes('ثمن')) {
+        filteredVariants = tamayuzItem.variants.filter((v) => v.variantName.includes('ثمن'));
+      }
+      const v = filteredVariants[0] || tamayuzItem.variants[0];
       return [
         {
           id: tamayuzItem.id,
           name: tamayuzItem.name,
           category: tamayuzItem.category,
-          variant: tamayuzItem.variants[0]?.variantName || 'أوقية',
-          price: tamayuzItem.displayedCardPrice || 95,
-          priceDisplay: tamayuzItem.variants[0]?.priceDisplay || '95 ريال',
+          variant: v?.displayedWeight || v?.variantName || 'أوقية',
+          price: v?.price || tamayuzItem.displayedCardPrice || 95,
+          priceDisplay: v?.priceDisplay || '95 ريال',
           description: tamayuzItem.notes,
           inStock: true,
           imageUrl: tamayuzItem.imageUrl,
           productUrl: tamayuzItem.productUrl,
+          hasDirectPage: true,
         },
       ];
     }
   }
 
-  // 5. Check Seyoufi King ("سيوفي كينغ", "السيوفي الكنق")
+  // 6. Check Seyoufi King ("سيوفي كينغ", "السيوفي الكنق")
   if (normUser.includes('سيوفي كينغ') || normUser.includes('سيوفي كنج') || normUser.includes('السيوفي الكنق')) {
     const seyoufiItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_8' || c.id === 'offer_3');
     if (seyoufiItem) {
@@ -574,40 +785,287 @@ function processProductCardsForQuery(userMessage: string, rawCards: ProductCardD
     }
   }
 
-  // 6. Check Saffron ("زعفران إيراني")
-  if (normUser.includes('زعفران إيراني') || normUser.includes('زعفران ايراني')) {
-    const saffronItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'saffron_1');
-    if (saffronItem) {
+  // 7. Check Cambodian Oud Oil ("دهن عود", "دهن كمبودي", "كوه كنج")
+  if (normUser.includes('دهن') || normUser.includes('كوه كنج')) {
+    const kohKong = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'oil_11');
+    if (kohKong) {
+      let matchedV = kohKong.variants[0]; // ربع تولة (96 ريال)
+      if (normUser.includes('نصف') || normUser.includes('نص')) {
+        matchedV = kohKong.variants[1] || matchedV;
+      } else if (normUser.includes('تولة') && !normUser.includes('ربع') && !normUser.includes('نصف') && !normUser.includes('نص')) {
+        matchedV = kohKong.variants[2] || matchedV;
+      }
       return [
         {
-          id: saffronItem.id,
-          name: saffronItem.name,
-          category: saffronItem.category,
-          variant: saffronItem.variants[0]?.variantName || 'جرام',
-          price: saffronItem.displayedCardPrice || 18,
-          priceDisplay: saffronItem.variants[0]?.priceDisplay || '18 ريال',
-          description: saffronItem.notes,
+          id: kohKong.id,
+          name: kohKong.name,
+          category: kohKong.category,
+          variant: matchedV.variantName,
+          price: matchedV.price || 96,
+          priceDisplay: matchedV.priceDisplay || '96 ريال',
+          description: kohKong.notes,
           inStock: true,
-          imageUrl: saffronItem.imageUrl,
-          productUrl: saffronItem.productUrl,
+          imageUrl: kohKong.imageUrl,
+          productUrl: kohKong.productUrl,
         },
       ];
+    }
+  }
+
+  // 8. Check Saffron ("زعفران", "المغربي", "الإيراني", "بكج الزعفران", "أبو 45")
+  const refersToSaffron =
+    normUser.includes('زعفران') ||
+    normUser.includes('مغربي') ||
+    (normUser.includes('خاص') && (recentHistoryText.includes('زعفران') || normUser.includes('بكج'))) ||
+    (normUser.includes('45') && (normUser.includes('جرام') || recentHistoryText.includes('زعفران')));
+
+  if (refersToSaffron) {
+    if (normUser.includes('مغربي')) {
+      const saffronItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'zaf_4');
+      if (saffronItem) {
+        let v = saffronItem.variants[0]; // 5 جرام (75 ريال)
+        if (normUser.includes('10') || normUser.includes('عشرة')) {
+          v = saffronItem.variants[1] || v;
+        }
+        return [
+          {
+            id: saffronItem.id,
+            name: saffronItem.name,
+            category: saffronItem.category,
+            variant: v.variantName,
+            price: v.price || 75,
+            priceDisplay: v.priceDisplay || '75 ريال',
+            description: saffronItem.notes,
+            inStock: true,
+            imageUrl: saffronItem.imageUrl,
+            productUrl: saffronItem.productUrl,
+          },
+        ];
+      }
+    }
+
+    if (normUser.includes('خاص') || normUser.includes('بكج الزعفران')) {
+      const saffronItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'zaf_1');
+      if (saffronItem) {
+        const v = saffronItem.variants[0];
+        return [
+          {
+            id: saffronItem.id,
+            name: saffronItem.name,
+            category: saffronItem.category,
+            variant: v.variantName,
+            price: v.price || 65,
+            priceDisplay: v.priceDisplay || '65 ريال',
+            description: saffronItem.notes,
+            inStock: true,
+            imageUrl: saffronItem.imageUrl,
+            productUrl: saffronItem.productUrl,
+          },
+        ];
+      }
+    }
+
+    if (normUser.includes('إيراني') || normUser.includes('ايراني') || normUser.includes('نقيل') || normUser.includes('45')) {
+      const saffronItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'zaf_3');
+      if (saffronItem) {
+        let v = saffronItem.variants[0]; // 5 جرام (45 ريال)
+        if (normUser.includes('10') || normUser.includes('عشرة')) {
+          v = saffronItem.variants[1] || v;
+        }
+        return [
+          {
+            id: saffronItem.id,
+            name: saffronItem.name,
+            category: saffronItem.category,
+            variant: v.variantName,
+            price: v.price || 45,
+            priceDisplay: v.priceDisplay || '45 ريال',
+            description: saffronItem.notes,
+            inStock: true,
+            imageUrl: saffronItem.imageUrl,
+            productUrl: saffronItem.productUrl,
+          },
+        ];
+      }
+    }
+
+    // General saffron request
+    const saffronItems = MIDHAL_OFFICIAL_CATALOG.filter((c) => c.category === 'الزعفران');
+    if (saffronItems.length > 0) {
+      return saffronItems.slice(0, 3).map((item) => ({
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        variant: item.variants[0]?.variantName,
+        price: item.displayedCardPrice ?? item.variants[0]?.price,
+        priceDisplay: item.variants[0]?.priceDisplay,
+        description: item.notes,
+        inStock: true,
+        imageUrl: item.imageUrl,
+        productUrl: item.productUrl,
+      }));
     }
   }
 
   // Filter rawCards if user requested a specific product name that rawCards mixed up
   if (rawCards.length > 0) {
     const lowerUser = normUser.toLowerCase();
-    if (lowerUser.includes('تايقر ذهبي') || lowerUser.includes('تايجر ذهبي')) {
+    if (lowerUser.includes('تايقر') || lowerUser.includes('تايجر')) {
       const filtered = rawCards.filter((c) => c.name.includes('التايقر') || c.name.includes('تايقر') || Boolean(c.id && c.id.includes('enh_1')));
       if (filtered.length > 0) return filtered;
+    }
+  }
+
+  // If follow-up and rawCards is empty, retain last assistant cards only if context hasn't changed
+  if (rawCards.length === 0 && isFollowUp && lastAssistantCards.length > 0) {
+    // If user changed topic to saffron, perfume, or oil, do not retain unrelated cards
+    const changedTopic = refersToSaffron || normUser.includes('عطر') || normUser.includes('شنط') || normUser.includes('دهن');
+    if (!changedTopic) {
+      return lastAssistantCards;
     }
   }
 
   return rawCards;
 }
 
-function parseReplyAndSuggestions(text: string, userMessage: string): {
+// Contextual suggestion generator strictly decoupled from AI text generation
+function determineContextualSuggestions(
+  replyText: string,
+  userMessage: string,
+  history: Array<{ role: string; content: string; productCards?: ProductCardData[] }> = [],
+  productCards: ProductCardData[] = []
+): string[] {
+  const normUser = userMessage.toLowerCase().trim();
+  const normReply = replyText.toLowerCase().trim();
+
+  // 1. Direct questions about price, weight, size, location, delivery, or a single specific item:
+  // In all direct questions, show ZERO suggestions (do not clutter the interface or fill space).
+  const isDirectQuestion =
+    normUser.includes('كم سعره') ||
+    normUser.includes('كم سعر') ||
+    normUser.includes('سعره بكم') ||
+    normUser.includes('بكم') ||
+    normUser.includes('كم جرام') ||
+    normUser.includes('كم وزنه') ||
+    normUser.includes('كم وزن') ||
+    normUser.includes('أبو 45') ||
+    normUser.includes('ابو 45') ||
+    normUser.includes('المغربي بكم') ||
+    normUser.includes('الكيلو بكم') ||
+    normUser.includes('الأوقية بكم') ||
+    normUser.includes('الاوقية بكم') ||
+    normUser.includes('طيب الكيلو') ||
+    normUser.includes('طيب النص') ||
+    normUser.includes('طيب الربع') ||
+    normUser.includes('طيب الثمن') ||
+    normUser.includes('وين موقعكم') ||
+    normUser.includes('وين مكانكم') ||
+    normUser.includes('عندكم توصيل') ||
+    normUser.includes('كيف التوصيل') ||
+    normUser.includes('الضمان الذهبي') ||
+    normUser.includes('طرق الدفع') ||
+    normUser.includes('كود الخصم') ||
+    // Specific single variant/product inquiry like "ربع تولة دهن كمبودي" or "أبي كوه كنج"
+    (normUser.includes('دهن') && (normUser.includes('ربع') || normUser.includes('تولة') || normUser.includes('كمبودي') || normUser.includes('كوه كنج'))) ||
+    // Specific direct inquiry about single saffron item (e.g., "نبغى زعفران مغربي" or "بكج الزعفران الخاص كم وزنه")
+    (normUser.includes('زعفران مغربي') && !normUser.includes('قارن') && !normUser.includes('رشح')) ||
+    (normUser.includes('بكج الزعفران الخاص') && !normUser.includes('قارن'));
+
+  if (isDirectQuestion) {
+    return [];
+  }
+
+  // 2. Comparison suggestion: [قارن بينهم]
+  // Rule: ONLY show "قارن بينهم" if the assistant presented 2 or more DISTINCT products
+  // as actual choices in the same context, and comparing them makes sense (e.g. recommendations or multiple options).
+  const distinctProductNames = new Set(productCards.map((c) => c.name.trim()));
+  const hasMultipleDistinctProducts = distinctProductNames.size >= 2;
+
+  const isComparativeContext =
+    normUser.includes('رشح لي') ||
+    normUser.includes('وش تنصحني') ||
+    normUser.includes('وش الأفضل') ||
+    normUser.includes('وش الافضل') ||
+    normUser.includes('خيارات') ||
+    normUser.includes('عروض') ||
+    normUser.includes('بدائل') ||
+    normUser.includes('للمجلس') ||
+    normUser.includes('للمناسبات') ||
+    normReply.includes('يتوفر عندنا نوعان') ||
+    normReply.includes('خيارات ممتازة') ||
+    normReply.includes('عدة خيارات') ||
+    normReply.includes('الفرق بين');
+
+  if (hasMultipleDistinctProducts && isComparativeContext) {
+    return ['قارن بينهم'];
+  }
+
+  // 3. Open exploration / broad inquiries where user needs guidance or classification:
+  // Example: "أبي عود" or "وش عندكم عود" -> clarify type
+  if (
+    normUser === 'أبي عود' ||
+    normUser === 'ابى عود' ||
+    normUser === 'ابغى عود' ||
+    normUser === 'عندكم عود' ||
+    normUser === 'وش عندكم عود' ||
+    normUser === 'بخور' ||
+    normUser === 'أبي بخور' ||
+    (normUser.includes('عود') && normReply.includes('طبيعي أو محسن'))
+  ) {
+    return ['طبيعي', 'محسن', 'رشح لي'];
+  }
+
+  // Example: "أبي عود محسن" -> clarify usage / purpose
+  if (
+    normUser === 'أبي عود محسن' ||
+    normUser === 'ابغى عود محسن' ||
+    normUser === 'عندكم عود محسن' ||
+    normUser === 'عود محسن'
+  ) {
+    return ['طبيعي', 'محسن', 'رشح لي'];
+  }
+
+  // Example: "أبي عود للمجلس" without distinct cards -> clarify natural vs enhanced
+  if (normUser.includes('عود للمجلس') || (normUser.includes('مجلس') && normUser.includes('عود'))) {
+    if (normReply.includes('طبيعي أو محسن') || normReply.includes('طبيعي او محسن') || normReply.includes('تفضله')) {
+      return ['طبيعي', 'محسن', 'رشح لي'];
+    }
+  }
+
+  // Example: General perfume inquiry ("وش عندكم عطور", "عندكم عطور")
+  if (
+    normUser === 'وش عندكم عطور' ||
+    normUser === 'عندكم عطور' ||
+    normUser === 'أبي عطر' ||
+    normUser === 'عطور'
+  ) {
+    return ['عطور رسمية', 'عطور يومية هادئة'];
+  }
+
+  // 4. Single product with multiple weights:
+  // If the user showed interest in an oud product without specifying weight (e.g. "أبي تايقر كمبودي" or "وش أسعار التايقر")
+  // and 1 distinct product is present with multiple weights:
+  if (
+    (normUser.includes('تايقر') || normUser.includes('موروكي') || normUser.includes('سيوفي') || normUser.includes('كلمنتان')) &&
+    !normUser.includes('كم سعره') &&
+    !normUser.includes('بكم') &&
+    !normUser.includes('أوقية') &&
+    !normUser.includes('كيلو') &&
+    !normUser.includes('ثمن') &&
+    distinctProductNames.size === 1
+  ) {
+    return ['الأوقية', 'النص', 'الكيلو'];
+  }
+
+  // 5. Default: If no suggestion adds clear value, return 0 suggestions.
+  return [];
+}
+
+function parseReplyAndSuggestions(
+  text: string,
+  userMessage: string,
+  history: Array<{ role: string; content: string; productCards?: ProductCardData[] }> = []
+): {
   reply: string;
   suggestions: string[];
   productCards: ProductCardData[];
@@ -787,6 +1245,26 @@ function parseReplyAndSuggestions(text: string, userMessage: string): {
       }
     }
 
+    // Check if query is about saffron ("زعفران")
+    if (candidates.length === 0 && (lowerText.includes('زعفران') || userMessage.includes('زعفران'))) {
+      const saffronItems = MIDHAL_OFFICIAL_CATALOG.filter((c) => c.category === 'الزعفران');
+      for (const s of saffronItems) {
+        candidates.push({
+          id: s.id,
+          name: s.name,
+          category: s.category,
+          variant: s.variants[0]?.variantName,
+          price: (s.displayedCardPrice ?? s.variants[0]?.price) || undefined,
+          priceDisplay: s.variants[0]?.priceDisplay,
+          description: s.notes,
+          inStock: s.overallAvailability !== 'نفدت الكمية',
+          imageUrl: s.imageUrl,
+          productUrl: s.productUrl,
+        });
+        if (candidates.length >= 3) break;
+      }
+    }
+
     // Check active offers mentioned
     if (candidates.length === 0 && (lowerText.includes('عرض') || lowerText.includes('عروض') || lowerText.includes('بكج') || lowerText.includes('offer'))) {
       for (const item of MIDHAL_OFFICIAL_CATALOG) {
@@ -830,25 +1308,6 @@ function parseReplyAndSuggestions(text: string, userMessage: string): {
       }
     }
 
-    // Check if query is about saffron ("زعفران")
-    if (candidates.length === 0 && lowerText.includes('زعفران')) {
-      const saffronItems = MIDHAL_OFFICIAL_CATALOG.filter((c) => c.category === 'الزعفران');
-      for (const s of saffronItems) {
-        candidates.push({
-          id: s.id,
-          name: s.name,
-          category: s.category,
-          variant: s.variants[0]?.variantName,
-          price: (s.displayedCardPrice ?? s.variants[0]?.price) || undefined,
-          priceDisplay: s.variants[0]?.priceDisplay,
-          description: s.notes,
-          inStock: s.overallAvailability !== 'نفدت الكمية',
-          imageUrl: s.imageUrl,
-          productUrl: s.productUrl,
-        });
-        if (candidates.length >= 3) break;
-      }
-    }
 
     // Check other catalog items specifically named
     if (candidates.length === 0) {
@@ -879,8 +1338,8 @@ function parseReplyAndSuggestions(text: string, userMessage: string): {
     }
   }
 
-  // Apply strict specific-query product card matching and filtering
-  productCards = processProductCardsForQuery(userMessage, productCards);
+  // Apply strict specific-query product card matching and filtering with context
+  productCards = processProductCardsForQuery(userMessage, productCards, history);
 
   // Enrich all product cards with unified store navigation resolution
   productCards = productCards.map((card, idx) => {
@@ -910,34 +1369,12 @@ function parseReplyAndSuggestions(text: string, userMessage: string): {
     };
   });
 
-  // If 2 or 3 products are presented, ensure "قارن بينهم" option is available in suggestions
-  if (productCards.length >= 2 && !suggestions.some((s) => s.includes('قارن'))) {
-    if (suggestions.length < 3) {
-      suggestions.push('قارن بينهم');
-    } else {
-      suggestions[2] = 'قارن بينهم';
-    }
-  }
-
-  // Contextual fallback suggestions if model didn't provide any
-  if (suggestions.length === 0) {
-    const msg = userMessage.toLowerCase();
-    if (msg.includes('شنط') || msg.includes('شنطة') || msg.includes('bag')) {
-      suggestions = ['شنطة فارغة', 'شنطة مع محتويات', 'عرض كل الشنط'];
-    } else if (msg.includes('زعفران') || msg.includes('saffron')) {
-      suggestions = ['بكج الزعفران الخاص', 'زعفران إيراني سوبر نقيل', 'زعفران مغربي'];
-    } else if (msg.includes('محسن')) {
-      suggestions = ['للاستخدام بالبيت', 'للمجلس والضيافة', 'خيارات العروض'];
-    } else if (msg.includes('عود') || msg.includes('oud')) {
-      suggestions = ['عود طبيعي', 'عود محسن', 'عروض العود'];
-    } else if (msg.includes('عطر') || msg.includes('عطور') || msg.includes('perfume')) {
-      suggestions = ['عطور هادئة', 'عطور رسمية للمناسبات', 'عرض كل العطور'];
-    }
-  }
+  // Strictly compute suggestions contextually (0, 1, 2, or 3 maximum)
+  const computedSuggestions = determineContextualSuggestions(cleaned.trim(), userMessage, history, productCards);
 
   return {
     reply: cleaned.trim(),
-    suggestions: suggestions.slice(0, 3),
+    suggestions: computedSuggestions.slice(0, 3),
     productCards: productCards.slice(0, 3),
   };
 }
@@ -945,7 +1382,9 @@ function parseReplyAndSuggestions(text: string, userMessage: string): {
 // Chat endpoint (stateless AI assistant)
 app.post('/api/chat', async (req: Request, res: Response) => {
   try {
-    const { message, conversationHistory = [] } = req.body;
+    const message = req.body.message;
+    const rawHistory = req.body.conversationHistory || req.body.history || [];
+    const conversationHistory = Array.isArray(rawHistory) ? rawHistory : [];
 
     if (!message || typeof message !== 'string') {
       res.status(400).json({ error: 'حقل الرسالة مطلوب' });
@@ -955,28 +1394,60 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     // Extract metadata & intent
     const intentAnalysis = extractIntentAndContext(message, conversationHistory);
 
-    const ai = getGeminiClient();
-    const systemInstruction = buildSystemInstruction(midhalKnowledge);
+    // Clean conversationHistory to remove any trailing duplicate of the current message
+    const cleanHistory = Array.isArray(conversationHistory) ? [...conversationHistory] : [];
+    while (
+      cleanHistory.length > 0 &&
+      cleanHistory[cleanHistory.length - 1].content &&
+      cleanHistory[cleanHistory.length - 1].content.trim() === message.trim() &&
+      (cleanHistory[cleanHistory.length - 1].role === 'customer' || cleanHistory[cleanHistory.length - 1].role === 'user')
+    ) {
+      cleanHistory.pop();
+    }
 
-    // Format contents array for Gemini
+    const isFollowUp = cleanHistory.length > 0;
+    const isComplex = message.includes('قارن') || message.includes('بينهم') || message.includes('الفرق بين');
+    const systemInstruction = buildSystemInstruction(midhalKnowledge, isFollowUp);
+
+    // Format contents array for Gemini with proper turn alternation and card context
     const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
 
     // Add previous conversation turns
-    for (const item of conversationHistory.slice(-8)) {
-      contents.push({
-        role: item.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: item.content }],
-      });
+    for (const item of cleanHistory) {
+      const role = item.role === 'assistant' || item.role === 'model' ? 'model' : 'user';
+      let textContent = item.content || '';
+
+      // If assistant turn had product cards, attach a summary so the model retains full context
+      if (role === 'model' && item.productCards && Array.isArray(item.productCards) && item.productCards.length > 0) {
+        const cardsSummary = item.productCards
+          .map((c: any) => `${c.name}${c.variant ? ` (${c.variant})` : ''}: ${c.priceDisplay || c.price || ''}`)
+          .join('، ');
+        textContent += `\n[المنتجات التي تم عرض بطاقاتها في هذا الرد: ${cardsSummary}]`;
+      }
+
+      // Maintain strict user <-> model turn alternation
+      if (contents.length > 0 && contents[contents.length - 1].role === role) {
+        contents[contents.length - 1].parts[0].text += `\n${textContent}`;
+      } else {
+        contents.push({
+          role,
+          parts: [{ text: textContent }],
+        });
+      }
     }
 
     // Add current user prompt
-    contents.push({
-      role: 'user',
-      parts: [{ text: message }],
-    });
+    if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+      contents[contents.length - 1].parts[0].text += `\n${message}`;
+    } else {
+      contents.push({
+        role: 'user',
+        parts: [{ text: message }],
+      });
+    }
 
-    const geminiResult = await generateGeminiReply(ai, contents, systemInstruction);
-    const { reply, suggestions, productCards } = parseReplyAndSuggestions(geminiResult.text, message);
+    const geminiResult = await generateGeminiReply(contents, systemInstruction, isComplex);
+    const { reply, suggestions, productCards } = parseReplyAndSuggestions(geminiResult.text, message, cleanHistory);
 
     // Record agent request telemetry with real token metadata
     analytics.recordAgentRequest({
@@ -1119,7 +1590,6 @@ app.post('/api/admin/unanswered/resolve', (req: Request, res: Response) => {
 // Start Vite server or static handling
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

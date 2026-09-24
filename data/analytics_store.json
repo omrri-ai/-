@@ -1,22 +1,22 @@
 {
   "site": {
-    "totalVisitors": 487,
-    "totalSessions": 659,
-    "totalPageviews": 1845,
+    "totalVisitors": 486,
+    "totalSessions": 662,
+    "totalPageviews": 1850,
     "devices": {
-      "mobile": 367,
+      "mobile": 372,
       "desktop": 104,
       "tablet": 20
     },
     "referrers": {
-      "مباشر (Direct)": 246,
-      "جوجل (Google Search)": 142,
+      "مباشر (Direct)": 245,
+      "جوجل (Google Search)": 148,
       "إنستغرام (Instagram)": 52,
       "تويتر / X": 31,
       "واتساب (WhatsApp)": 20
     },
     "locations": {
-      "الرياض، السعودية": 215,
+      "الرياض، السعودية": 220,
       "جدة، السعودية": 96,
       "الدمام / الخبر، السعودية": 84,
       "مكة المكرمة، السعودية": 42,
@@ -24,29 +24,67 @@
       "أخرى": 24
     },
     "newVsReturning": {
-      "newVisitors": 339,
-      "returningVisitors": 152
+      "newVisitors": 338,
+      "returningVisitors": 158
     },
     "pages": {
-      "الرئيسية (محادثة واستشارة الطيب)": 1524,
+      "الرئيسية (محادثة واستشارة الطيب)": 1530,
       "قسم العروض والتخفيضات": 180,
       "قسم شنط البخور": 85,
-      "عطور مدهال الطيب": 55,
-      "الرئيسية": 1
+      "عطور مدهال الطيب": 55
     }
   },
   "agent": {
-    "totalRequests": 894,
-    "conversationsStarted": 348,
-    "totalMessages": 1788,
+    "totalRequests": 975,
+    "conversationsStarted": 351,
+    "totalMessages": 1950,
     "productImpressions": {
-      "عود كمبودي محسن التايقر": 412,
+      "عود كمبودي محسن التايقر": 413,
       "عرض بكج التايقر (ثمن كيلو)": 286,
       "عود مروكي التميز سوبر مرتفع": 245,
       "شنطة حفظ عود جلدية فارغة (بيج)": 198,
       "عطر لكجري (مستوحى من توباكو)": 162,
       "عرض بكج السيوفي الكنق": 140,
-      "عرض الدقة الكمبودية": 118
+      "عرض الدقة الكمبودية": 118,
+      "عود موري هندي نجلاند سوبر ومرتفع": 2,
+      "السيوفي كينغ": 4,
+      "شنطة بني أكريلك مع 8 ربع تولة و8 نصف تولة و8 تولة": 4,
+      "شنطة بني كبير أكريلك مع 48 ربع تولة": 2,
+      "شنطة جلد اللون البني زجاج": 3,
+      "عود تايقر كمبودي 30": 8,
+      "موروكي التميز 95": 9,
+      "السيوفي كينغ 100": 2,
+      "عود السيوفي الفيتنامي": 4,
+      "التايقر الذهبي 35 - أوقية": 21,
+      "التايقر الذهبي 35 - ثمن كيلو": 18,
+      "التايقر الذهبي 35 - ربع كيلو": 18,
+      "التايقر الذهبي": 3,
+      "موروكي التميز": 3,
+      "التايقر الذهبي 35 - الكيلو": 3,
+      "شنطة جلدية فارغة لحفظ العود والطيب (بدون محتويات)": 1,
+      "شنطة بني كبير أكريلك مع أرباع التولة عدد 24": 1,
+      "عود تايقر كمبودي محسن": 1,
+      "عود موروكي ميني محسن 30": 1,
+      "دقة موروكي اصقون دبل سوبر 200": 1,
+      "دقة العود الكمبودي 50": 1,
+      "بكج التايقر (ثمن كيلو عود كمبودي تايقر)": 3,
+      "التايقر الذهبي 35": 1,
+      "زعفران إيراني سوبر نقيل": 9,
+      "زعفران مغربي، شامل الضريبة": 1,
+      "بكج الزعفران الخاص": 7,
+      "شنطة جلدية فارغة (ثمن كيلو)": 1,
+      "شنطة جلدية فارغة (ربع كيلو)": 1,
+      "شنطة جلدية فارغة (نصف كيلو)": 1,
+      "شنطة جلدية فارغة": 3,
+      "عرض الدقة الكمبودية الفاخرة": 2,
+      "بكج السيوفي الكنق الفاخر": 2,
+      "بكج الزعفران — أقوى العروض": 5,
+      "دهن عود كمبودي كوه كنج 125": 3,
+      "دهن تراد كمبودي 125": 1,
+      "زعفران مغربي": 5,
+      "عود موروكي اصقون كسر مباخر وميني دبل سوبر": 1,
+      "عود موروكي اصقون ميني سوبر مرتفع ودبل": 1,
+      "كلمنتان مالينو دبل وتربل اندر ووتر": 1
     },
     "productClicks": {
       "عود كمبودي محسن التايقر": 98,
@@ -59,7 +97,9 @@
       "عود كمبودي محسن التايقر": 62,
       "عرض بكج التايقر (ثمن كيلو)": 54,
       "شنطة حفظ عود جلدية فارغة (بيج)": 36,
-      "عود مروكي التميز سوبر مرتفع": 28
+      "عود مروكي التميز سوبر مرتفع": 28,
+      "بكج الزعفران الخاص": 1,
+      "بكج الزعفران — أقوى العروض": 1
     },
     "topSearchedProducts": {
       "تايقر ذهبي / كمبودي محسن": 310,
@@ -74,81 +114,366 @@
       "استفسار عن أسعار وأوزان الشنط الجلدية": 142,
       "عروض وتخفيضات المتجر": 130,
       "الفرق بين الطبيعي والمحسن": 98,
-      "مدة الشحن والتوصيل": 84
+      "مدة الشحن والتوصيل": 84,
+      "استفسار عام": 20,
+      "طلب ترشيح واختيار": 26,
+      "استفسار عن السعر": 28,
+      "مقارنة بين منتجات": 6,
+      "استفسار معرفي عن خصائص العود": 1
     },
     "errors": {
-      "total": 14,
-      "rateLimits429": 1,
-      "other": 13
+      "total": 53,
+      "rateLimits429": 47,
+      "other": 6
     },
-    "fallbackCount": 10,
+    "fallbackCount": 50,
     "fallbackEvents": [
       {
-        "id": "fb_1790176147962",
-        "timestamp": "2026-09-23T15:09:07.962Z",
-        "fromModel": "gemini-3.1-flash-lite",
-        "toModel": "gemini-3.8-flash",
-        "reason": "{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand a"
-      },
-      {
-        "id": "fb_1790176130373",
-        "timestamp": "2026-09-23T15:08:50.373Z",
+        "id": "fb_1790189397783",
+        "timestamp": "2026-09-23T18:49:57.783Z",
         "fromModel": "gemini-3.5-flash-lite",
         "toModel": "gemini-3.1-flash-lite",
-        "reason": "{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand a"
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
       },
       {
-        "id": "fb_1790176119378",
-        "timestamp": "2026-09-23T15:08:39.378Z",
-        "fromModel": "gemini-3.1-flash-lite",
-        "toModel": "gemini-3.8-flash",
-        "reason": "{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand a"
+        "id": "fb_1790189397617",
+        "timestamp": "2026-09-23T18:49:57.617Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
       },
       {
-        "id": "fb_1790176094297",
-        "timestamp": "2026-09-23T15:08:14.297Z",
+        "id": "fb_1790189392043",
+        "timestamp": "2026-09-23T18:49:52.043Z",
         "fromModel": "gemini-3.5-flash-lite",
         "toModel": "gemini-3.1-flash-lite",
-        "reason": "{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand a"
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
       },
       {
-        "id": "fb_1790176093567",
-        "timestamp": "2026-09-23T15:08:13.567Z",
-        "fromModel": "gemini-3.1-flash-lite",
-        "toModel": "gemini-3.8-flash",
-        "reason": "{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand a"
+        "id": "fb_1790189391890",
+        "timestamp": "2026-09-23T18:49:51.890Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
       },
       {
-        "id": "fb_1790176090167",
-        "timestamp": "2026-09-23T15:08:10.167Z",
+        "id": "fb_1790189380890",
+        "timestamp": "2026-09-23T18:49:40.890Z",
         "fromModel": "gemini-3.5-flash-lite",
         "toModel": "gemini-3.1-flash-lite",
-        "reason": "{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand a"
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
       },
       {
-        "id": "fb_1790176089895",
-        "timestamp": "2026-09-23T15:08:09.895Z",
-        "fromModel": "gemini-3.1-flash-lite",
-        "toModel": "gemini-3.8-flash",
-        "reason": "{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand a"
+        "id": "fb_1790189380750",
+        "timestamp": "2026-09-23T18:49:40.750Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
       },
       {
-        "id": "fb_1790176085892",
-        "timestamp": "2026-09-23T15:08:05.893Z",
+        "id": "fb_1790189369521",
+        "timestamp": "2026-09-23T18:49:29.521Z",
         "fromModel": "gemini-3.5-flash-lite",
         "toModel": "gemini-3.1-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790189369239",
+        "timestamp": "2026-09-23T18:49:29.239Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790189366996",
+        "timestamp": "2026-09-23T18:49:26.996Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790189364635",
+        "timestamp": "2026-09-23T18:49:24.635Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790189361934",
+        "timestamp": "2026-09-23T18:49:21.934Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790189359517",
+        "timestamp": "2026-09-23T18:49:19.517Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790189357339",
+        "timestamp": "2026-09-23T18:49:17.339Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790189355527",
+        "timestamp": "2026-09-23T18:49:15.527Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790189353713",
+        "timestamp": "2026-09-23T18:49:13.713Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790189350804",
+        "timestamp": "2026-09-23T18:49:10.804Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790189347572",
+        "timestamp": "2026-09-23T18:49:07.572Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790189345513",
+        "timestamp": "2026-09-23T18:49:05.513Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186546805",
+        "timestamp": "2026-09-23T18:02:26.805Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
         "reason": "{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand a"
+      },
+      {
+        "id": "fb_1790186495750",
+        "timestamp": "2026-09-23T18:01:35.750Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186470312",
+        "timestamp": "2026-09-23T18:01:10.312Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186422209",
+        "timestamp": "2026-09-23T18:00:22.209Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186411889",
+        "timestamp": "2026-09-23T18:00:11.889Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186403971",
+        "timestamp": "2026-09-23T18:00:03.971Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186397206",
+        "timestamp": "2026-09-23T17:59:57.206Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186390576",
+        "timestamp": "2026-09-23T17:59:50.576Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186384436",
+        "timestamp": "2026-09-23T17:59:44.436Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186372023",
+        "timestamp": "2026-09-23T17:59:32.023Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186361531",
+        "timestamp": "2026-09-23T17:59:21.531Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186355148",
+        "timestamp": "2026-09-23T17:59:15.148Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186346948",
+        "timestamp": "2026-09-23T17:59:06.948Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186320859",
+        "timestamp": "2026-09-23T17:58:40.859Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186311423",
+        "timestamp": "2026-09-23T17:58:31.423Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186300146",
+        "timestamp": "2026-09-23T17:58:20.146Z",
+        "fromModel": "gemini-3.5-flash-lite",
+        "toModel": "gemini-3.1-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186300013",
+        "timestamp": "2026-09-23T17:58:20.013Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186299076",
+        "timestamp": "2026-09-23T17:58:19.076Z",
+        "fromModel": "gemini-3.5-flash-lite",
+        "toModel": "gemini-3.1-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186298754",
+        "timestamp": "2026-09-23T17:58:18.754Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186288965",
+        "timestamp": "2026-09-23T17:58:08.965Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186282425",
+        "timestamp": "2026-09-23T17:58:02.425Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186282029",
+        "timestamp": "2026-09-23T17:58:02.029Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand a"
+      },
+      {
+        "id": "fb_1790186274367",
+        "timestamp": "2026-09-23T17:57:54.367Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186267883",
+        "timestamp": "2026-09-23T17:57:47.883Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186266244",
+        "timestamp": "2026-09-23T17:57:46.244Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186258560",
+        "timestamp": "2026-09-23T17:57:38.560Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186256198",
+        "timestamp": "2026-09-23T17:57:36.198Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186252276",
+        "timestamp": "2026-09-23T17:57:32.276Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186244826",
+        "timestamp": "2026-09-23T17:57:24.826Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
+      },
+      {
+        "id": "fb_1790186236493",
+        "timestamp": "2026-09-23T17:57:16.493Z",
+        "fromModel": "gemini-3.8-flash",
+        "toModel": "gemini-3.5-flash-lite",
+        "reason": "{\"error\":{\"code\":429,\"message\":\"You exceeded your current quota, please check your plan and billing "
       },
       {
         "id": "fb_1",
-        "timestamp": "2026-09-22T02:59:07.590Z",
+        "timestamp": "2026-09-22T05:40:12.551Z",
         "fromModel": "gemini-3.5-flash-lite",
         "toModel": "gemini-3.1-flash-lite",
         "reason": "429 Quota Exceeded (Resource Exhausted)"
       },
       {
         "id": "fb_2",
-        "timestamp": "2026-09-19T18:59:07.590Z",
+        "timestamp": "2026-09-19T21:40:12.551Z",
         "fromModel": "gemini-3.5-flash-lite",
         "toModel": "gemini-3.1-flash-lite",
         "reason": "503 Service Unavailable (High Demand)"
@@ -156,21 +481,21 @@
     ]
   },
   "tokens": {
-    "totalInputTokens": 429120,
-    "totalOutputTokens": 147510,
-    "totalTokens": 576630,
+    "totalInputTokens": 2424386,
+    "totalOutputTokens": 169501,
+    "totalTokens": 2593887,
     "byModel": {
       "gemini-3.5-flash-lite": {
-        "requests": 842,
-        "inputTokens": 404160,
-        "outputTokens": 138930,
-        "totalTokens": 543090
+        "requests": 912,
+        "inputTokens": 2128603,
+        "outputTokens": 158488,
+        "totalTokens": 2287091
       },
       "gemini-3.1-flash-lite": {
-        "requests": 48,
-        "inputTokens": 23040,
-        "outputTokens": 7920,
-        "totalTokens": 30960
+        "requests": 59,
+        "inputTokens": 293863,
+        "outputTokens": 10353,
+        "totalTokens": 304216
       },
       "gemini-3.8-flash": {
         "requests": 4,
@@ -186,77 +511,112 @@
       "question": "عندكم عود مناسب للشعر؟",
       "category": "عناية وشخصي",
       "count": 7,
-      "firstSeen": "2026-09-16T14:59:07.590Z",
-      "lastSeen": "2026-09-23T14:59:07.590Z"
+      "firstSeen": "2026-09-16T17:40:12.551Z",
+      "lastSeen": "2026-09-23T17:40:12.551Z"
     },
     {
       "id": "unans_2",
       "question": "هل تشحنون خارج المملكة لدول الخليج؟",
       "category": "الشحن والتوصيل",
       "count": 4,
-      "firstSeen": "2026-09-18T14:59:07.590Z",
-      "lastSeen": "2026-09-22T14:59:07.590Z"
+      "firstSeen": "2026-09-18T17:40:12.551Z",
+      "lastSeen": "2026-09-22T17:40:12.551Z"
     },
     {
       "id": "unans_3",
       "question": "وش الفرق بين موروكي التميز وموروكي دبل سوبر؟",
       "category": "مقارنات المنتجات",
       "count": 3,
-      "firstSeen": "2026-09-19T14:59:07.590Z",
-      "lastSeen": "2026-09-21T14:59:07.590Z"
+      "firstSeen": "2026-09-19T17:40:12.551Z",
+      "lastSeen": "2026-09-21T17:40:12.551Z"
     },
     {
       "id": "unans_4",
       "question": "متى يتوفر عطر رويال المستوحى من رومفورد؟",
       "category": "توفر العطور",
       "count": 3,
-      "firstSeen": "2026-09-20T14:59:07.590Z",
-      "lastSeen": "2026-09-23T02:59:07.590Z"
+      "firstSeen": "2026-09-20T17:40:12.551Z",
+      "lastSeen": "2026-09-23T05:40:12.551Z"
     },
     {
       "id": "unans_5",
       "question": "هل يوجد دفع عند الاستلام؟",
       "category": "طرق الدفع",
       "count": 2,
-      "firstSeen": "2026-09-17T14:59:07.590Z",
-      "lastSeen": "2026-09-20T14:59:07.590Z"
+      "firstSeen": "2026-09-17T17:40:12.551Z",
+      "lastSeen": "2026-09-20T17:40:12.551Z"
     }
   ],
   "answeredTopics": [
+    {
+      "id": "ans_1790186481800_32mj",
+      "topic": "استفسار معرفي عن خصائص العود",
+      "category": "محادثة ناجحة",
+      "count": 1,
+      "lastSeen": "2026-09-23T18:01:21.800Z"
+    },
+    {
+      "id": "ans_1790186274225_slhc",
+      "topic": "مقارنة بين منتجات",
+      "category": "محادثة ناجحة",
+      "count": 6,
+      "lastSeen": "2026-09-23T18:49:24.497Z"
+    },
+    {
+      "id": "ans_1790185731561_51fk",
+      "topic": "استفسار عن السعر",
+      "category": "محادثة ناجحة",
+      "count": 28,
+      "lastSeen": "2026-09-24T06:05:28.977Z"
+    },
+    {
+      "id": "ans_1790185600246_9i02",
+      "topic": "طلب ترشيح واختيار",
+      "category": "محادثة ناجحة",
+      "count": 26,
+      "lastSeen": "2026-09-24T06:05:25.500Z"
+    },
+    {
+      "id": "ans_1790185281385_vgi4",
+      "topic": "استفسار عام",
+      "category": "محادثة ناجحة",
+      "count": 20,
+      "lastSeen": "2026-09-24T06:05:04.205Z"
+    },
     {
       "id": "ans_1",
       "topic": "ترشيح عود تايقر محسن فاخر للمناسبات والمجالس",
       "category": "عود محسن",
       "count": 245,
-      "lastSeen": "2026-09-23T14:59:07.590Z"
+      "lastSeen": "2026-09-23T17:40:12.551Z"
     },
     {
       "id": "ans_2",
       "topic": "تفاصيل وأسعار الشنط الجلدية الفارغة والألوان (بيج، جملي، أسود، أخضر)",
       "category": "الشنط",
       "count": 142,
-      "lastSeen": "2026-09-23T14:59:07.590Z"
+      "lastSeen": "2026-09-23T17:40:12.551Z"
     },
     {
       "id": "ans_3",
       "topic": "عروض البكجات (بكج التايقر وبكج السيوفي الكنق)",
       "category": "العروض",
       "count": 128,
-      "lastSeen": "2026-09-23T14:59:07.590Z"
+      "lastSeen": "2026-09-23T17:40:12.551Z"
     },
     {
       "id": "ans_4",
       "topic": "مستوحيات عطور مدهال الطيب وسعرها الموحد 75 ريال",
       "category": "العطور",
       "count": 94,
-      "lastSeen": "2026-09-23T14:59:07.590Z"
+      "lastSeen": "2026-09-23T17:40:12.551Z"
     },
     {
       "id": "ans_5",
       "topic": "معادلة الأوزان الرسمية (الأوقية 28ج، الثمن 125ج، الربع 250ج)",
       "category": "الأوزان",
       "count": 86,
-      "lastSeen": "2026-09-23T14:59:07.590Z"
+      "lastSeen": "2026-09-23T17:40:12.551Z"
     }
   ],
   "dailyMetrics": {
@@ -470,19 +830,35 @@
     },
     "2026-09-23": {
       "date": "2026-09-23",
-      "visitors": 60,
-      "sessions": 81,
-      "pageviews": 229,
-      "agentRequests": 106,
-      "conversations": 41,
-      "tokensTotal": 68370,
-      "tokensInput": 50880,
-      "tokensOutput": 17490,
-      "productImpressions": 212,
+      "visitors": 59,
+      "sessions": 82,
+      "pageviews": 230,
+      "agentRequests": 152,
+      "conversations": 43,
+      "tokensTotal": 1224569,
+      "tokensInput": 1188081,
+      "tokensOutput": 36488,
+      "productImpressions": 314,
       "productClicks": 47,
       "productLinkClicks": 26,
       "unansweredCount": 1,
-      "errors": 11
+      "errors": 50
+    },
+    "2026-09-24": {
+      "date": "2026-09-24",
+      "visitors": 0,
+      "sessions": 2,
+      "pageviews": 4,
+      "agentRequests": 35,
+      "conversations": 1,
+      "tokensTotal": 861058,
+      "tokensInput": 858065,
+      "tokensOutput": 2993,
+      "productImpressions": 57,
+      "productClicks": 0,
+      "productLinkClicks": 2,
+      "unansweredCount": 0,
+      "errors": 0
     }
   }
 }
