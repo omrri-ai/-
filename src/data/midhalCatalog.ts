@@ -1048,6 +1048,23 @@ const RAW_MIDHAL_CATALOG: CatalogItem[] = [
     notes: 'السابق 75، خصم 33%',
     variants: [{ variantName: 'درزن 1000 مل', price: 50, priceDisplay: '50 ريال (السابق 75)', inStock: true }],
   },
+  {
+    id: 'acc_empty_bag',
+    name: 'شنطة حفظ عود جلدية فارغة',
+    category: 'الإكسسوارات وشنط الهدايا',
+    type: 'شنط فارغة',
+    isEmptyBag: true,
+    colors: ['بيج', 'جملي', 'أسود', 'أخضر'],
+    displayedCardPrice: 20,
+    overallAvailability: 'متوفر',
+    notes: 'شنطة جلدية فاخرة لحفظ العود والبخور بدون محتويات داخلها، متوفرة بأربعة ألوان (بيج، جملي، أسود، أخضر).',
+    variants: [
+      { variantName: 'ثمن كيلو', displayedWeight: 'ثمن كيلو (١٢٥ جم)', price: 20, priceDisplay: '20 ريال', inStock: true },
+      { variantName: 'ربع كيلو', displayedWeight: 'ربع كيلو (٢٥٠ جم)', price: 25, priceDisplay: '25 ريال', inStock: true },
+      { variantName: 'نصف كيلو', displayedWeight: 'نصف كيلو (٥٠٠ جم)', price: 30, priceDisplay: '30 ريال', inStock: true },
+      { variantName: 'كيلو', displayedWeight: 'كيلو (١٠٠٠ جم)', price: 35, priceDisplay: '35 ريال', inStock: true },
+    ],
+  },
 
   // البخور والمعمول
   {

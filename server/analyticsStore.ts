@@ -78,6 +78,7 @@ export interface AnalyticsData {
     };
     fallbackCount: number;
     fallbackEvents: FallbackEvent[];
+    directLookupRequests?: number;
   };
   tokens: {
     totalInputTokens: number;
@@ -518,6 +519,8 @@ class AnalyticsService {
     userQuery: string;
     agentReply: string;
     detectedTopic?: string;
+    responseTimeMs?: number;
+    isDirectLookup?: boolean;
   }): void {
     const daily = this.ensureDailyMetric();
     const nowIso = new Date().toISOString();
@@ -526,6 +529,10 @@ class AnalyticsService {
     daily.agentRequests += 1;
     this.data.agent.totalRequests += 1;
     this.data.agent.totalMessages += 2; // user + agent
+
+    if (params.isDirectLookup) {
+      this.data.agent.directLookupRequests = (this.data.agent.directLookupRequests || 0) + 1;
+    }
 
     // 2. Token counts
     const inTok = params.promptTokens || 0;
