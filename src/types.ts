@@ -86,6 +86,28 @@ export interface CatalogItem {
   nearestOfficialUrl?: string | null;
   nearestOfficialLabel?: string | null;
   linkType?: string;
+  offer?: {
+    price: number;
+    quantity: string;
+    ouqiyasCount: number;
+    type: 'عرض عود محسن' | string;
+  };
+}
+
+export interface EnhancedOudOfferItem {
+  id: string;
+  productName: string;
+  catalogItemId?: string;
+  aliases: string[];
+  regularPrice: number | null; // السعر الأصلي للأوقية في قاعدة البيانات
+  regularUnit: 'أوقية';
+  offer: {
+    price: 99;
+    quantity: string; // e.g. "4 أوقيات", "3 أوقيات", "2 أوقية"
+    ouqiyasCount: number;
+    type: 'عرض عود محسن';
+  };
+  notes?: string;
 }
 
 export interface StoreProduct {

@@ -4,7 +4,14 @@ import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import { MidhalKnowledgeBase, ProductCardData, CustomerMessage } from './src/types.ts';
-import { MIDHAL_OFFICIAL_CATALOG, searchCatalog, findOptionsByBudget } from './src/data/midhalCatalog.ts';
+import {
+  MIDHAL_OFFICIAL_CATALOG,
+  searchCatalog,
+  findOptionsByBudget,
+  ENHANCED_OUD_OFFERS,
+  findEnhancedOudOffer,
+  getAllEnhancedOudOffers,
+} from './src/data/midhalCatalog.ts';
 import { PERFUME_PROFILES, getVerifiedMediaForProduct } from './src/data/officialStoreData.ts';
 import {
   resolveStoreDestination,
@@ -40,6 +47,7 @@ let midhalKnowledge: MidhalKnowledgeBase = {
     paymentMethods: ['مدى', 'فيزا / ماستركارد', 'أبل باي (Apple Pay)', 'تابي (متاح فقط في قسم العروض)'],
   },
   activeOffers: [
+    { title: 'عروض العود المحسن (باقة 99 ريال)', details: 'عرض عود محسن خاص: 99 ريال للعرض كاملاً لـ 16 منتجاً معتمداً بعدد أوقيات محدد لكل منتج (2 أو 3 أو 4 أوقيات)، مع بقاء السعر الأصلي للأوقية مستقلاً وثابتاً.' },
     { title: 'عروض الكميات والعود', details: 'عروض بأوزان ثابتة وشحن مجاني لبعض العروض (مثل عود كمبودي تايقر ربع ونصف كيلو، والدقة الكمبودية ربع ونصف كيلو).' },
     { title: 'تنبيه تابي', details: 'الطلب عن طريق تابي متاح حصرياً من قسم العروض.' },
   ],
@@ -91,6 +99,16 @@ function buildCatalogTextRepresentation(): string {
       if (v.notes) text += ` (${v.notes})`;
     }
   }
+
+  text += '\n\n══════════════════════════════════════════════════';
+  text += '\nعروض باقة العود المحسن الرسمية المعتمدة (99 ريال للعرض كاملاً):';
+  text += '\n══════════════════════════════════════════════════';
+  text += '\nقاعدة صارمة: 99 ريال هي سعر العرض كاملاً بعدد الأوقيات المذكور وليست سعر الأوقية. السعر الأصلي للأوقية يبقى مستقلاً تماماً.';
+  for (const off of ENHANCED_OUD_OFFERS) {
+    const origPriceStr = off.regularPrice !== null ? `${off.regularPrice} ريال` : 'غير مسعر كأوقية مفردة في قاعدة البيانات';
+    text += `\n- [عرض: ${off.productName}] | كمية العرض: ${off.offer.quantity} | سعر العرض كاملاً: 99 ريال | السعر الأصلي للأوقية: ${origPriceStr} | نوع العرض: ${off.offer.type}`;
+  }
+
   return text;
 }
 
@@ -108,11 +126,22 @@ function buildSiteMapTextRepresentation(): string {
   for (const o of STORE_OFFER_PAGES) {
     text += `- [صفحة ${o.name}](${o.officialUrl}): ${o.notes || ''}\n`;
   }
-  text += '\n4. صفحات الخدمة والسياسات والمعلومات (Service & Policy Pages):\n';
+  text += '\n4. صفحة العروض الرسمية المعتمدة وتصنيفاتها (Official Offers Hub - https://medhaloud.com/عروض-اليوم-الوطني/c169936294):\n';
+  text += 'المصدر الرسمي الأول للعروض يتفرع إلى:\n';
+  text += '- [عروض التايقر](https://medhaloud.com/عروض-التايقر/c1633675980)\n';
+  text += '- [النوادر](https://medhaloud.com/النوادر/c1521213176)\n';
+  text += '- [عروض اليوم الوطني والمناسبات](https://medhaloud.com/عروض-اليوم-الوطني/c169936294)\n';
+  text += '- [عروض الإهداء](https://medhaloud.com/عروض-الأهداء/c132583920)\n';
+  text += '- [قسم العروض العامة](https://medhaloud.com/عروض-مدهال-الطيب/c1995874283)\n';
+  text += '- [العود الطبيعي](https://medhaloud.com/العود-الطبيعي/c693006277)\n';
+  text += '- [العود المحسن - باقة الـ 99 ريال](https://medhaloud.com/العود-المحسن/c2090886574)\n';
+  text += '- [بكجات العطور](https://medhaloud.com/بكجات-العطور/c956037174)\n';
+  text += '- [الزعفران](https://medhaloud.com/زعفران/c813586073)\n';
+  text += '\n5. صفحات الخدمة والسياسات والمعلومات (Service & Policy Pages):\n';
   for (const p of STORE_SERVICE_PAGES) {
     text += `- [${p.name}](${p.officialUrl})\n`;
   }
-  text += '\n5. صفحات منتجات رئيسية موثقة مستقلة:\n';
+  text += '\n6. صفحات منتجات رئيسية موثقة مستقلة:\n';
   for (const pr of STORE_VERIFIED_PRODUCTS.slice(0, 20)) {
     text += `- [${pr.name}](${pr.officialUrl})\n`;
   }
@@ -272,13 +301,83 @@ ${followUpDirective}
     - إذا قال: "المغربي بكم؟" أو "نبغى زعفران مغربي" ← الإجابة المباشرة: "المغربي 5 جرام بـ75 ريال، و10 جرام بـ150 ريال."
     - إذا قال: "بكج الزعفران الخاص كم وزنه؟" ← الإجابة المباشرة: "6 جرام وسعره 65 ريال."
 
-17. نظام إخراج الكروت:
+17. قواعد التعامل مع العروض والترشيح الذكي (قواعد إلزامية وصارمة):
+    أ) السؤال العام عن العروض ("عندكم عروض؟" / "وش العروض؟" / "فيه عروض؟" / "عروضكم"):
+       - ممنوع منعاً باتاً عرض جميع العروض أو سرد الـ 16 منتجاً أو إخراج أي Product Cards مباشرة عند السؤال العام.
+       - اسأله سؤالاً واحداً طبيعياً يساعد على تحديد العرض المناسب:
+         "أكيد، تبي عرض عود للبيت، للمجلس والمناسبات، أو شيء للإهداء؟"
+         أو بصياغة طبيعية أقصر حسب السياق: "أكيد، تبيها للبيت أو للمجلس والمناسبات أو للإهداء؟"
+       - لا تجعل السؤال ثابتاً حرفياً دائماً؛ المهم أن يجمع المعلومة التي ستغيّر الترشيح فعلاً.
+       - الاقتراحات التفاعلية تكون: [ للبيت ] [ للمجلس والمناسبات ] [ للإهداء ].
+       - لا تخرج أي بطاقات منتجات (Product Cards) إطلاقاً في هذا الرد العام.
+
+    ب) إذا حدد العميل الاستخدام:
+       - إذا قال: "للبيت" (أو استخدام يومي):
+         ابحث في بيانات العروض المتاحة واختر العروض التي تتناسب مع استخدام البيت، فقط إذا كانت هناك معلومات موثقة تسمح بهذا الترشيح.
+         رشح حتى 3 خيارات موثقة مناسبة للبيت من عروض العود المحسن (بـ 99 ريال للعرض كاملاً):
+         * عود تايقر كمبودي: 4 أوقيات بـ 99 ريال (كمية وافرة وثبات ممتاز للبيت).
+         * عود الفراشة: 4 أوقيات بـ 99 ريال (كسر مباخر خفيفة مناسبة لتبخير البيت اليومي).
+         * عود مروكي ميني: 4 أوقيات بـ 99 ريال (اقتصادي ومناسب جداً للبيت).
+         وأخرج كروت هذه الخيارات الثلاثة فقط.
+         (قاعدة هامة: إذا كانت بيانات العرض لا تحتوي على وصف أو معلومة كافية لتحديد الاستخدام، لا تخترع أن العرض مناسب للبيت، ويمكنك بدل ذلك قول: "عندي عدة عروض عود، وإذا تبي أرشح لك بينها حسب النوع والكمية والميزانية").
+       - إذا قال: "للمجلس" أو "للمناسبات" أو "أبي شيء فخم للمناسبات":
+         افهم أن المطلوب هو ترشيح عروض مناسبة لهذا الاستخدام. ابحث في قاعدة بيانات العروض والمنتجات عن الخيارات التي تتطابق مع المعلومات الموثقة (لا تعرض عروضاً عشوائية لمجرد أنها موجودة في صفحة العروض).
+         رشح حتى 3 خيارات موثقة مناسبة للمجالس والضيافة:
+         * موروكي التميز: أوقيتين بـ 99 ريال (نكهة سويتية بخورية فخمة للمجالس).
+         * سيوفي رويال: أوقيتين بـ 99 ريال (طابع رسمي وثقيل للمناسبات).
+         * سيوفي كنج فيتنامي: أوقيتين بـ 99 ريال (كسر مباخر فخمة تجمّل بالضيافة).
+         وأخرج كروت هذه الخيارات الثلاثة فقط.
+       - إذا قال: "للإهداء" أو "أبي عرض هدية":
+         ابحث عن عروض الإهداء أو العروض التي تحتوي على معلومات مؤكدة تجعلها مناسبة للإهداء (ولا تعرض عروض العود العادية على أنها عروض هدايا إلا إذا كانت البيانات تثبت ذلك).
+         مثل: بكج الزعفران الخاص 65 ريال، توزيعات مدهال الطيب 99 ريال، أو بكج الأدهان 422 ريال.
+
+    ج) الميزانية:
+       - إذا قال العميل ميزانية مثل "عندي 100 ريال" أو "ميزانيتي 100" بعد سؤال العروض:
+         استخدم الميزانية مع الاستخدام. مثال: "أبي عرض للبيت وميزانيتي 100" ← ابحث في العروض المتاحة التي سعرها فعلياً 100 ريال أو أقل (عروض الـ 99 ريال تناسب الميزانية تماماً). لا تغيّر السعر ولا تحسب سعراً جديداً.
+       - إذا قال "عندي 100 ريال" دون تحديد استخدام: وضّح أن عروض الـ 99 ريال تناسب ميزانيته واسأله إن كان يفضلها للبيت أو للمجلس أو للإهداء دون إخراج كروت قبل تحديد الاستخدام.
+
+    د) التفريق بين طلب الترشيح والبحث المباشر:
+       - إذا قال: "أبي عود محسن للبيت": رشح حتى 3 خيارات مناسبة فقط (مثل تايقر كمبودي، فراشة، مروكي ميني).
+       - إذا قال: "عندكم عروض عود محسن؟" أو "أبي عرض عود محسن" ← هذا استفسار أو طلب ترشيح: لا تعرض الـ 16 عرضاً دفعة واحدة، بل وضّح باقة الـ 99 ريال ورشح حتى 3 خيارات مناسبة فقط (مثل تايقر كمبودي، مروكي تميز، تايقر ذهبي) واسأله عن الاستخدام (للبيت أو للمجلس) أو إن كان يرغب برؤية القائمة كاملة.
+       - إذا قال: "وش عروض العود المحسن الموجودة؟" أو "اعرض كل عروض العود المحسن" ← هذه عملية بحث مباشر: اعرض القائمة الكاملة للعروض الـ16 بوضوح وأخرج كروتها، ولا تطبق حد الـ 3.
+
+    هـ) بيانات عروض العود المحسن الـ 16 (باقة 99 ريال) والتفريق التام عن السعر الأصلي للأوقية:
+       - 99 ريال هو سعر العرض كاملاً بعدد الأوقيات الموضح، وممنوع نهائياً اعتباره سعر الأوقية!
+       - السعر الأصلي للأوقية يبقى مستقلاً ومنفصلاً في قاعدة البيانات دون أي تعديل.
+       - "كم الأوقية؟" ← السعر الأصلي للأوقية فقط (مثال: أوقية تايقر كمبودي = 30 ريال، أوقية مروكي تميز = 95 ريال).
+       - "كم العرض؟" أو "وش العرض؟" ← 99 ريال مع توضيح عدد الأوقيات (مثال: عرض تايقر كمبودي = 99 ريال ويحتوي على 4 أوقيات).
+       - المنتجات الـ 16 المشمولة في العرض حصراً:
+         1. تايقر ذهبي: 3 أوقيات بـ 99 ريال (السعر الأصلي للأوقية: 35 ريال)
+         2. تايقر كمبودي: 4 أوقيات بـ 99 ريال (السعر الأصلي للأوقية: 30 ريال)
+         3. فراشة: 4 أوقيات بـ 99 ريال (السعر الأصلي للأوقية: 30 ريال)
+         4. زوايا فيتنامي: 2 أوقية بـ 99 ريال (السعر الأصلي للأوقية: 75 ريال)
+         5. سيوفي رويال: 2 أوقية بـ 99 ريال (السعر الأصلي للأوقية: 100 ريال)
+         6. سيوفي كنج فيتنامي: 2 أوقية بـ 99 ريال (السعر الأصلي للأوقية: 100 ريال)
+         7. زوايا سبيشال فيتنامي: 2 أوقية بـ 99 ريال (السعر الأصلي للأوقية: 75 ريال)
+         8. دقة كمبودي: 3 أوقيات بـ 99 ريال (السعر الأصلي للأوقية: 50 ريال)
+         9. مروكي فيتنامي: 3 أوقيات بـ 99 ريال (السعر الأصلي للأوقية: 75 ريال)
+         10. سيوفي فيتنامي: 3 أوقيات بـ 99 ريال (السعر الأصلي للأوقية: 50 ريال)
+         11. كلمنتان: 2 أوقية بـ 99 ريال (سعر العرض فقط، لا يوجد سعر أوقية مفردة مسجل)
+         12. مروكي تميز: 2 أوقية بـ 99 ريال (السعر الأصلي للأوقية: 95 ريال)
+         13. مروكي ملكي: 2 أوقية بـ 99 ريال (السعر الأصلي للأوقية: 75 ريال)
+         14. مروكي شيوخ: 2 أوقية بـ 99 ريال (سعر العرض فقط، لا يوجد سعر أوقية مفردة مسجل)
+         15. دقة مدهال: 2 أوقية بـ 99 ريال (السعر الأصلي للأوقية: 65 ريال)
+         16. مروكي ميني: 4 أوقيات بـ 99 ريال (السعر الأصلي للأوقية: 30 ريال)
+
+    و) صفحة العروض الرسمية المعتمدة والتصنيفات:
+       - رابط صفحة العروض الرسمية: https://medhaloud.com/عروض-اليوم-الوطني/c169936294
+       - استخدم هذه الصفحة كمصدر للعروض الموجودة على الموقع لاكتشاف: عروض التايقر، النوادر، عروض اليوم الوطني، عروض الإهداء، العروض، العود الطبيعي، العود المحسن، بكجات العطور، الزعفران، وأي عروض أخرى في المصدر الرسمي.
+       - الصفحة الرسمية تعرض تصنيفات متعددة، فلا تعتبر كل ما يظهر فيها عرضاً واحداً أو قائمة واحدة.
+       - إذا طُلب رابط لمنتج محدد، لا تستخدم رابط صفحة العروض كبديل، بل ابحث عن صفحة المنتج الفعلية واستخدم رابطها المباشر الموثق.
+       - إذا لم يعرف المساعد كيف يستخرج العروض: لا يعرض كل شيء كحل بديل، بل يوضح باختصار ويسأل عن الغرض أو الميزانية.
+
+18. نظام إخراج الكروت:
     - إذا طلب العميل منتجاً محدداً أو وزناً محدداً: أخرج كرت المنتج المطلوب فقط.
     - إذا طلب ترشيحاً مفتوحاً أو مقارنة: أخرج بطاقات الخيارات المعنية (بحد أقصى 3 كروت).
     - صيغة الكروت: CARDS: [{"name": "اسم المنتج المطابق", "variant": "الوزن أو السعة أو المقاس", "price": السعر_رقمياً, "description": "وصف موجز موثق"}]
     (لا تضف أي وسم أو نص SUGGESTIONS في ردك؛ النظام البرمجي للواجهة يحدد الاقتراحات المناسبة تلقائياً حسب السياق).
 
-18. قاعدة حاسمة للغموض: إذا لم تفهم طلب العميل بوضوح، لا تخمّن ولا تقم بعرض منتجات عشوائية. اسأل سؤالاً واحداً فقط وبشكل مباشر لتوضيح الطلب. (مثال: "تقصد معطر مفارش أم عطر شخصي؟").
+19. قاعدة حاسمة للغموض: إذا لم تفهم طلب العميل بوضوح، لا تخمّن ولا تقم بعرض منتجات عشوائية. اسأل سؤالاً واحداً فقط وبشكل مباشر لتوضيح الطلب. (مثال: "تقصد معطر مفارش أم عطر شخصي؟").
 
 
 ══════════════════════════════════════════════════
@@ -422,15 +521,20 @@ function extractConversationState(
       currentProductId = 'oil_11';
       currentProductName = 'دهن عود كمبودي كوه كنج 125';
       currentType = 'دهن عود طبيعي';
-    } else if (text.includes('التميز') || text.includes('موروكي التميز')) {
+    } else if (text.includes('تميز')) {
       currentSection = 'العود المحسن';
       currentProductId = 'enh_5';
       currentProductName = 'موروكي التميز 95';
       currentType = 'محسن';
     } else if (text.includes('تايقر') || text.includes('تايجر')) {
       currentSection = 'العود المحسن';
-      currentProductId = 'enh_1';
-      currentProductName = 'عود تايقر كمبودي المحسن';
+      if (text.includes('ذهب')) {
+        currentProductId = 'enh_1';
+        currentProductName = 'التايقر الذهبي 35';
+      } else {
+        currentProductId = 'enh_4';
+        currentProductName = 'عود تايقر كمبودي 30';
+      }
       currentType = 'محسن';
     } else if (text.includes('سيوفي') || text.includes('كنق')) {
       currentSection = 'العود المحسن';
@@ -503,15 +607,20 @@ function extractConversationState(
     currentProductId = 'oil_11';
     currentProductName = 'دهن عود كمبودي كوه كنج 125';
     currentType = 'دهن عود طبيعي';
-  } else if (normUser.includes('التميز') || normUser.includes('موروكي التميز')) {
+  } else if (normUser.includes('تميز')) {
     currentSection = 'العود المحسن';
     currentProductId = 'enh_5';
     currentProductName = 'موروكي التميز 95';
     currentType = 'محسن';
   } else if (normUser.includes('تايقر') || normUser.includes('تايجر')) {
     currentSection = 'العود المحسن';
-    currentProductId = 'enh_1';
-    currentProductName = 'عود تايقر كمبودي المحسن';
+    if (normUser.includes('ذهب')) {
+      currentProductId = 'enh_1';
+      currentProductName = 'التايقر الذهبي 35';
+    } else {
+      currentProductId = 'enh_4';
+      currentProductName = 'عود تايقر كمبودي 30';
+    }
     currentType = 'محسن';
   }
 
@@ -682,6 +791,419 @@ function tryDirectLookup(
     };
   }
 
+  // ── عروض المتجر الرسمية والترشيح الذكي المعتمد ──
+
+  // 1. السؤال العام عن العروض ("عندكم عروض؟" / "عندكم عروض" / "وش العروض؟" / "فيه عروض؟" / "عروضكم")
+  const isGeneralOffersInquiry =
+    /^(عندكم\s*عروض|وش\s*(هي\s*)?العروض|فيه\s*عروض|عروضكم|العروض|عروض|وش\s*عندكم\s*عروض|عندكم\s*تخفيضات|وش\s*التخفيضات|عروض\s*اليوم|وش\s*عروض\s*اليوم|عندكم\s*خصومات|وش\s*الخصومات|أبي\s*عروض|ابي\s*عروض|ابغى\s*عروض|أبغى\s*عروض|اعطني\s*العروض|اعرض\s*العروض|ماهي\s*العروض)(\s*(\?|؟))?$/i.test(normUser) ||
+    normUser === 'عندكم عروض؟' || normUser === 'عندكم عروض' ||
+    normUser === 'وش العروض؟' || normUser === 'وش العروض' ||
+    normUser === 'وش عروضكم؟' || normUser === 'وش عروضكم' ||
+    normUser === 'عروضكم' || normUser === 'عروض' || normUser === 'العروض' ||
+    normUser === 'فيه عروض؟' || normUser === 'فيه عروض' ||
+    normUser === 'عندكم تخفيضات؟' || normUser === 'عندكم تخفيضات' ||
+    normUser === 'عندكم خصومات؟' || normUser === 'عندكم خصومات' ||
+    (normUser.includes('عروض') && (normUser.includes('عندكم') || normUser.includes('وش') || normUser.includes('فيه')) &&
+     !normUser.includes('محسن') && !normUser.includes('طبيعي') && !normUser.includes('بيت') && !normUser.includes('منزل') &&
+     !normUser.includes('مجلس') && !normUser.includes('مناسب') && !normUser.includes('اهداء') && !normUser.includes('إهداء') &&
+     !normUser.includes('هدية') && !normUser.includes('تايقر') && !normUser.includes('تميز') && !normUser.includes('100'));
+
+  if (isGeneralOffersInquiry) {
+    return {
+      reply: 'أكيد، تبيها للبيت أو للمجلس والمناسبات أو للإهداء؟',
+      suggestions: ['للبيت', 'للمجلس والمناسبات', 'للإهداء'],
+      productCards: [],
+    };
+  }
+
+  // 2. فحص سياق المحادثة لمعرفة ما إذا كان العميل يتابع استفسار العروض السابق
+  const historyText = history.map((h) => (h.content || '')).join(' ').toLowerCase();
+  const prevAssistantMessage = history.length > 0 ? (history[history.length - 1].content || '').toLowerCase() : '';
+  const isAfterOfferQuestion = prevAssistantMessage.includes('للبيت') && (prevAssistantMessage.includes('للمجلس') || prevAssistantMessage.includes('للإهداء'));
+  const isOfferContext = isAfterOfferQuestion || historyText.includes('عروض') || historyText.includes('تبيها للبيت') || state.currentSection === 'قسم العروض';
+
+  // فحص الميزانية في سياق العروض إذا لم يحدد الاستخدام بعد:
+  const isBudgetOnlyInquiry =
+    (normUser === 'عندي 100 ريال' || normUser === 'عندي 100' || normUser === 'ميزانيتي 100 ريال' ||
+     normUser === 'ميزانيتي 100' || normUser === '100 ريال' || normUser === 'بحدود 100' || normUser === 'ميزانيتي 100 ريال ابي عرض') &&
+    (isOfferContext || normUser.includes('عرض') || normUser.includes('عروض'));
+
+  if (isBudgetOnlyInquiry) {
+    return {
+      reply: 'ضمن ميزانية 100 ريال، متوفرة عروض ممتازة بـ 99 ريال للعرض كاملاً (مثل عروض باقة العود المحسن 99 ريال، أو بكج الزعفران 65 ريال). تبيها للبيت والاستخدام اليومي أو للمجلس والمناسبات أو للإهداء؟',
+      suggestions: ['للبيت', 'للمجلس والمناسبات', 'للإهداء'],
+      productCards: [],
+    };
+  }
+
+  // أ) للبيت / استخدام يومي
+  const isHomeOfferInquiry =
+    (normUser === 'للبيت' || normUser === 'بيت' || normUser === 'للمنزل' || normUser === 'يومي' || normUser === 'استخدام للبيت' ||
+     normUser.includes('للبيت') || normUser.includes('عروض للبيت') || normUser.includes('عرض للبيت') ||
+     (normUser.includes('محسن') && (normUser.includes('بيت') || normUser.includes('منزل')))) &&
+    (isOfferContext || normUser.includes('عرض') || normUser.includes('عروض') || normUser.includes('100'));
+
+  if (isHomeOfferInquiry) {
+    const featuredHomeOffers = [
+      { id: 'enh_4_offer', name: 'عود تايقر كمبودي محسن - عرض 4 أوقيات', variant: '4 أوقيات (عرض عود محسن)', price: 99, catalogId: 'enh_4', desc: 'عرض خاص: 4 أوقيات كاملة بـ 99 ريال (كمية وافرة وممتاز للبيت).' },
+      { id: 'enh_13_offer', name: 'عود الفراشة الكمبودية - عرض 4 أوقيات', variant: '4 أوقيات (عرض عود محسن)', price: 99, catalogId: 'enh_13', desc: 'عرض خاص: 4 أوقيات كاملة بـ 99 ريال (كسر مباخر خفيفة مناسبة لتبخير البيت اليومي).' },
+      { id: 'enh_11_offer', name: 'عود موروكي ميني محسن - عرض 4 أوقيات', variant: '4 أوقيات (عرض عود محسن)', price: 99, catalogId: 'enh_11', desc: 'عرض خاص: 4 أوقيات كاملة بـ 99 ريال (اقتصادي ومناسب جداً للبيت).' },
+    ];
+
+    const cards: ProductCardData[] = featuredHomeOffers.map((o) => {
+      const item = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === o.catalogId);
+      return {
+        id: o.id,
+        name: o.name,
+        category: 'العود المحسن',
+        variant: o.variant,
+        price: o.price,
+        priceDisplay: '99 ريال',
+        description: o.desc,
+        inStock: true,
+        imageUrl: item?.imageUrl || null,
+        productUrl: item?.productUrl,
+        hasDirectPage: true,
+      };
+    });
+
+    const hasBudgetMention = normUser.includes('100');
+    const replyText = hasBudgetMention
+      ? `تناسبك للبيت والاستخدام اليومي ضمن ميزانية 100 ريال هذه الخيارات من عروض العود المحسن (بـ 99 ريال للعرض كاملاً):
+- عود تايقر كمبودي: 4 أوقيات بـ 99 ريال (كمية وافرة وثبات ممتاز للبيت).
+- عود الفراشة: 4 أوقيات بـ 99 ريال (كسر مباخر خفيفة مناسبة لتبخير البيت اليومي).
+- عود مروكي ميني: 4 أوقيات بـ 99 ريال (اقتصادي ومناسب جداً للبيت).`
+      : `تناسبك للبيت والاستخدام اليومي هذه الخيارات من عروض العود المحسن (بـ 99 ريال للعرض كاملاً):
+- عود تايقر كمبودي: 4 أوقيات بـ 99 ريال (كمية وافرة وثبات ممتاز للبيت).
+- عود الفراشة: 4 أوقيات بـ 99 ريال (كسر مباخر خفيفة مناسبة لتبخير البيت اليومي).
+- عود مروكي ميني: 4 أوقيات بـ 99 ريال (اقتصادي ومناسب جداً للبيت).`;
+
+    return {
+      reply: replyText,
+      suggestions: ['كم أوقية التايقر؟', 'كم أوقية الفراشة؟', 'وش يجي في عرض التايقر؟'],
+      productCards: cards,
+    };
+  }
+
+  // ب) للمجلس والمناسبات
+  const isMajlisOfferInquiry =
+    (normUser === 'للمجلس والمناسبات' ||
+     normUser === 'للمجلس' ||
+     normUser === 'مجلس' ||
+     normUser === 'للمناسبات' ||
+     normUser === 'مناسبات' ||
+     normUser.includes('للمجلس') ||
+     normUser.includes('للمناسبات') ||
+     normUser.includes('فخم للمناسبات') ||
+     normUser.includes('عروض للمجلس') ||
+     normUser.includes('عرض للمجلس')) &&
+    (isOfferContext || normUser.includes('عرض') || normUser.includes('عروض') || normUser.includes('مجلس') || normUser.includes('مناسب'));
+
+  if (isMajlisOfferInquiry) {
+    const featuredMajlisOffers = [
+      { id: 'enh_5_offer', name: 'موروكي التميز 95 - عرض أوقيتين', variant: '2 أوقية (عرض عود محسن)', price: 99, catalogId: 'enh_5', desc: 'عرض خاص: أوقيتين (2 أوقية) بـ 99 ريال (نكهة سويتية بخورية فخمة للمجالس والضيوف).' },
+      { id: 'enh_7_offer', name: 'السيوفي الرويال 100 - عرض أوقيتين', variant: '2 أوقية (عرض عود محسن)', price: 99, catalogId: 'enh_7', desc: 'عرض خاص: أوقيتين (2 أوقية) بـ 99 ريال (طابع رسمي وثقيل للمناسبات).' },
+      { id: 'enh_6_offer', name: 'السيوفي كينغ 100 - عرض أوقيتين', variant: '2 أوقية (عرض عود محسن)', price: 99, catalogId: 'enh_6', desc: 'عرض خاص: أوقيتين (2 أوقية) بـ 99 ريال (كسر مباخر فخمة تجمّل بالضيافة).' },
+    ];
+
+    const cards: ProductCardData[] = featuredMajlisOffers.map((o) => {
+      const item = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === o.catalogId);
+      return {
+        id: o.id,
+        name: o.name,
+        category: 'العود المحسن',
+        variant: o.variant,
+        price: o.price,
+        priceDisplay: '99 ريال',
+        description: o.desc,
+        inStock: true,
+        imageUrl: item?.imageUrl || null,
+        productUrl: item?.productUrl,
+        hasDirectPage: true,
+      };
+    });
+
+    const hasBudgetMention = normUser.includes('100');
+    const replyText = hasBudgetMention
+      ? `تناسبك للمجلس والمناسبات ضمن ميزانية 100 ريال هذه الخيارات المميزة من عروض العود المحسن (بـ 99 ريال للعرض كاملاً):
+- موروكي التميز: أوقيتين (2 أوقية) بـ 99 ريال (نكهة سويتية بخورية فخمة للمجالس والضيوف).
+- سيوفي رويال: أوقيتين (2 أوقية) بـ 99 ريال (طابع رسمي وثقيل للمناسبات).
+- سيوفي كنج فيتنامي: أوقيتين (2 أوقية) بـ 99 ريال (كسر مباخر فخمة تجمّل بالضيافة).`
+      : `تناسبك للمجلس والمناسبات هذه الخيارات المميزة من عروض العود المحسن (بـ 99 ريال للعرض كاملاً):
+- موروكي التميز: أوقيتين (2 أوقية) بـ 99 ريال (نكهة سويتية بخورية فخمة للمجالس والضيوف).
+- سيوفي رويال: أوقيتين (2 أوقية) بـ 99 ريال (طابع رسمي وثقيل للمناسبات).
+- سيوفي كنج فيتنامي: أوقيتين (2 أوقية) بـ 99 ريال (كسر مباخر فخمة تجمّل بالضيافة).`;
+
+    return {
+      reply: replyText,
+      suggestions: ['وش يجي في عرض مروكي تميز؟', 'كم أوقية مروكي تميز؟', 'كم أوقية سيوفي رويال؟'],
+      productCards: cards,
+    };
+  }
+
+  // ج) للإهداء
+  const isGiftOfferInquiry =
+    (normUser === 'للإهداء' ||
+     normUser === 'للأهداء' ||
+     normUser === 'إهداء' ||
+     normUser === 'اهداء' ||
+     normUser === 'هدية' ||
+     normUser.includes('عرض هدية') ||
+     normUser.includes('عرض للإهداء') ||
+     normUser.includes('عروض الإهداء') ||
+     normUser.includes('عروض الاهداء') ||
+     normUser.includes('هدية للمناسبات')) &&
+    (isOfferContext || normUser.includes('عرض') || normUser.includes('عروض') || normUser.includes('إهداء') || normUser.includes('اهداء') || normUser.includes('هدية'));
+
+  if (isGiftOfferInquiry) {
+    const giftCards: ProductCardData[] = [
+      {
+        id: 'saffron_package',
+        name: 'بكج الزعفران الخاص',
+        category: 'الزعفران',
+        variant: '6 جرام',
+        price: 65,
+        priceDisplay: '65 ريال',
+        description: 'بكج الزعفران الخاص وزن 6 جرام بتغليف أنيق وفاخر مناسب جداً للإهداء.',
+        inStock: true,
+        hasDirectPage: true,
+      },
+      {
+        id: 'pkg_1',
+        name: 'توزيعات مدهال الطيب',
+        category: 'قسم العروض',
+        variant: 'توزيعات ومناسبات',
+        price: 99,
+        priceDisplay: '99 ريال',
+        description: 'توزيعات وهدايا مدهال الطيب المناسبة للضيوف والمناسبات.',
+        inStock: true,
+        hasDirectPage: true,
+      },
+      {
+        id: 'oil_2',
+        name: 'بكج الادهان 422',
+        category: 'أدهان العود',
+        variant: '4 أرباع تولة',
+        price: 422,
+        priceDisplay: '422 ريال',
+        description: 'بكج أدهان بيور وطبيعية فاخرة 4 أرباع تولة في علبة إهداء مميزة.',
+        inStock: true,
+        hasDirectPage: true,
+      },
+    ];
+
+    return {
+      reply: `تناسبك للإهداء هذه الخيارات الموثقة من عروض المتجر:
+- بكج الزعفران الخاص: 6 جرام بـ 65 ريال (تغليف أنيق وفاخر مناسب جداً للإهداء).
+- توزيعات مدهال الطيب: مناسبة لإهداء المناسبات والضيوف.
+- بكج الأدهان: 4 أرباع تولة دهن عود طبيعي فاخر بـ 422 ريال.`,
+      suggestions: ['كم وزن بكج الزعفران؟', 'وش مكونات بكج الأدهان؟'],
+      productCards: giftCards,
+    };
+  }
+
+  // د) البحث المباشر عن كل عروض العود المحسن (Direct Search for all 16 offers):
+  // مثل: "وش عروض العود المحسن الموجودة؟" / "وش كل عروض العود المحسن؟" / "عروض العود المحسن الموجودة" / "اعرض كل عروض العود المحسن"
+  const isDirectSearchAllEnhancedOffers =
+    (normUser.includes('عروض') || normUser.includes('عرض')) &&
+    (normUser.includes('محسن') || normUser.includes('المحسن')) &&
+    (normUser.includes('الموجودة') || normUser.includes('الموجوده') || normUser.includes('كل') || normUser.includes('جميع') || normUser.includes('قائمة') || normUser.includes('وش عروض') || normUser.includes('ماهي عروض') || normUser.includes('اعرض') || normUser === 'وش عروض العود المحسن؟' || normUser === 'وش عروض العود المحسن');
+
+  if (isDirectSearchAllEnhancedOffers) {
+    const reply = `متوفرة حالياً 16 عرضاً للعود المحسن بسعر 99 ريال للعرض كاملاً:
+- تايقر كمبودي: 4 أوقيات بـ 99 ريال
+- فراشة: 4 أوقيات بـ 99 ريال
+- مروكي ميني: 4 أوقيات بـ 99 ريال
+- تايقر ذهبي: 3 أوقيات بـ 99 ريال
+- دقة كمبودي: 3 أوقيات بـ 99 ريال
+- مروكي فيتنامي: 3 أوقيات بـ 99 ريال
+- سيوفي فيتنامي: 3 أوقيات بـ 99 ريال
+- مروكي تميز: أوقيتين بـ 99 ريال
+- مروكي ملكي: أوقيتين بـ 99 ريال
+- سيوفي رويال: أوقيتين بـ 99 ريال
+- سيوفي كنج فيتنامي: أوقيتين بـ 99 ريال
+- زوايا فيتنامي: أوقيتين بـ 99 ريال
+- زوايا سبيشال فيتنامي: أوقيتين بـ 99 ريال
+- دقة مدهال: أوقيتين بـ 99 ريال
+- كلمنتان: أوقيتين بـ 99 ريال
+- مروكي شيوخ: أوقيتين بـ 99 ريال
+
+(ملاحظة هامة: سعر 99 ريال هو للعرض كاملاً بعدد الأوقيات الموضح لكل منتج، وليس سعراً للأوقية المفردة).`;
+
+    const allCards: ProductCardData[] = ENHANCED_OUD_OFFERS.map((o) => {
+      const item = o.catalogItemId ? MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === o.catalogItemId) : null;
+      return {
+        id: `${o.id}_card`,
+        name: item ? `${item.name} - عرض ${o.offer.quantity}` : `${o.productName} - عرض ${o.offer.quantity}`,
+        category: 'العود المحسن',
+        variant: `${o.offer.quantity} (عرض عود محسن)`,
+        price: 99,
+        priceDisplay: '99 ريال',
+        description: `عرض خاص: ${o.offer.quantity} بـ 99 ريال للعرض كاملاً${o.regularPrice ? ` (السعر الأصلي للأوقية ${o.regularPrice} ريال)` : ''}.`,
+        inStock: true,
+        imageUrl: item?.imageUrl || null,
+        productUrl: item?.productUrl,
+        hasDirectPage: true,
+      };
+    });
+
+    return {
+      reply,
+      suggestions: ['وش عرض التايقر الكمبودي؟', 'كم سعر الأوقية للتايقر الكمبودي؟', 'وش يجي في عرض مروكي تميز؟'],
+      productCards: allCards,
+    };
+  }
+
+  // هـ) السؤال أو طلب الترشيح في عروض العود المحسن ("عندكم عروض عود محسن؟" / "أبي عرض عود محسن" / "عروض عود محسن"):
+  const isRecommendationEnhancedOffer =
+    (normUser.includes('عرض') || normUser.includes('عروض')) &&
+    (normUser.includes('محسن') || normUser.includes('المحسن')) &&
+    !isDirectSearchAllEnhancedOffers;
+
+  if (isRecommendationEnhancedOffer) {
+    const featuredOffers = [
+      { id: 'enh_4_offer', name: 'عود تايقر كمبودي محسن - عرض 4 أوقيات', variant: '4 أوقيات (عرض عود محسن)', price: 99, catalogId: 'enh_4', desc: 'عرض خاص: 4 أوقيات كاملة بـ 99 ريال (كمية وافرة وثبات ممتاز للبيت).' },
+      { id: 'enh_5_offer', name: 'موروكي التميز 95 - عرض أوقيتين', variant: '2 أوقية (عرض عود محسن)', price: 99, catalogId: 'enh_5', desc: 'عرض خاص: أوقيتين (2 أوقية) بـ 99 ريال (نكهة سويتية بخورية فخمة للمجالس والضيوف).' },
+      { id: 'enh_1_offer', name: 'التايقر الذهبي 35 - عرض 3 أوقيات', variant: '3 أوقيات (عرض عود محسن)', price: 99, catalogId: 'enh_1', desc: 'عرض خاص: 3 أوقيات كاملة بـ 99 ريال (نكهة كمبودية سويتية مميزة).' },
+    ];
+
+    const cards: ProductCardData[] = featuredOffers.map((o) => {
+      const item = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === o.catalogId);
+      return {
+        id: o.id,
+        name: o.name,
+        category: 'العود المحسن',
+        variant: o.variant,
+        price: o.price,
+        priceDisplay: '99 ريال',
+        description: o.desc,
+        inStock: true,
+        imageUrl: item?.imageUrl || null,
+        productUrl: item?.productUrl,
+        hasDirectPage: true,
+      };
+    });
+
+    return {
+      reply: `نعم، متوفرة باقة عروض العود المحسن بسعر 99 ريال للعرض كاملاً (تشمل 16 صنفاً بعدد أوقيات محدد لكل نوع، مع بقاء السعر الأصلي للأوقية مستقلاً):
+- عود تايقر كمبودي: 4 أوقيات بـ 99 ريال (مناسب للبيت والاستخدام اليومي).
+- موروكي التميز: أوقيتين بـ 99 ريال (فخم ومجمل للمجالس والضيوف).
+- التايقر الذهبي: 3 أوقيات بـ 99 ريال (نكهة كمبودية سويتية مميزة).
+
+تبيها للبيت والاستخدام اليومي أو للمجلس والمناسبات؟ (أو إذا تحب تشوف قائمة الـ 16 عرضاً كاملة أبشر).`,
+      suggestions: ['للبيت', 'للمجلس والمناسبات', 'وش عروض العود المحسن الموجودة؟'],
+      productCards: cards,
+    };
+  }
+
+  // و) تحديد المنتج من رسالة العميل الحالية أو من سياق المحادثة:
+  let matchedOffer = ENHANCED_OUD_OFFERS.find((o) =>
+    o.aliases.some((a) => normUser.includes(a.toLowerCase()))
+  );
+
+  if (!matchedOffer && state.currentProductId) {
+    matchedOffer = ENHANCED_OUD_OFFERS.find((o) => o.catalogItemId === state.currentProductId);
+  }
+  if (!matchedOffer && state.currentProductName) {
+    const curNorm = state.currentProductName.toLowerCase();
+    matchedOffer = ENHANCED_OUD_OFFERS.find((o) =>
+      o.aliases.some((a) => curNorm.includes(a.toLowerCase()) || a.toLowerCase().includes(curNorm))
+    );
+  }
+
+  if (matchedOffer) {
+    const isOfferInquiry =
+      normUser.includes('عرض') ||
+      normUser.includes('العرض') ||
+      normUser.includes('يجي في') ||
+      normUser.includes('وش يجي') ||
+      normUser.includes('محتويات') ||
+      normUser.includes('كم أوقية في') ||
+      normUser.includes('كم اوقية في') ||
+      normUser.includes('كم اوقيه في') ||
+      normUser.includes('كم أوقيه في');
+
+    const isOunceInquiry =
+      (normUser.includes('أوقية') || normUser.includes('اوقية') || normUser.includes('أوقيه') || normUser.includes('اوقيه')) &&
+      !isOfferInquiry;
+
+    // 1. استفسار العرض: (كم عرض التايقر الكمبودي؟ / وش عرض التايقر الكمبودي؟ / وش يجي في عرض مروكي تميز؟ / كم العرض؟)
+    if (isOfferInquiry) {
+      const catItem = matchedOffer.catalogItemId
+        ? MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === matchedOffer.catalogItemId)
+        : null;
+
+      let reply = '';
+      const displayQty = matchedOffer.offer.quantity === '2 أوقية' ? '2 أوقية (أوقيتين)' : matchedOffer.offer.quantity;
+      if (normUser.includes('يجي') || normUser.includes('محتويات') || normUser.includes('كم أوقية') || normUser.includes('كم اوقية')) {
+        reply = `عرض ${matchedOffer.productName} يحتوي على ${displayQty} بسعر 99 ريال للعرض كاملاً.`;
+      } else {
+        reply = `عرض ${matchedOffer.productName} بـ 99 ريال للعرض كاملاً، ويحتوي على ${displayQty}.`;
+      }
+
+      const card: ProductCardData = {
+        id: `${matchedOffer.id}_card`,
+        name: catItem ? `${catItem.name} - عرض ${matchedOffer.offer.quantity}` : `${matchedOffer.productName} - عرض ${matchedOffer.offer.quantity}`,
+        category: 'العود المحسن',
+        variant: `${matchedOffer.offer.quantity} (عرض عود محسن)`,
+        price: 99,
+        priceDisplay: '99 ريال',
+        description: `عرض عود محسن خاص: ${matchedOffer.offer.quantity} بـ 99 ريال للعرض كاملاً${matchedOffer.regularPrice ? ` (السعر الأصلي للأوقية المفردة ${matchedOffer.regularPrice} ريال)` : ''}.`,
+        inStock: true,
+        imageUrl: catItem?.imageUrl || null,
+        productUrl: catItem?.productUrl,
+        hasDirectPage: true,
+      };
+
+      return {
+        reply,
+        suggestions: matchedOffer.regularPrice ? [`كم سعر الأوقية لـ${matchedOffer.productName}؟`] : [],
+        productCards: [card],
+      };
+    }
+
+    // 2. استفسار سعر الأوقية الأصلي: (كم سعر الأوقية للتايقر الكمبودي؟ / كم أوقية التايقر الكمبودي؟ / كم أوقية مروكي تميز؟ / كم الأوقية؟)
+    if (isOunceInquiry) {
+      if (matchedOffer.regularPrice !== null) {
+        const catItem = matchedOffer.catalogItemId
+          ? MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === matchedOffer.catalogItemId)
+          : null;
+        const ounceVariant = catItem?.variants.find(
+          (v) => v.variantName === 'الأوقية' || v.variantName === 'أوقية' || (v.weightGrams && v.weightGrams === 28)
+        );
+
+        const reply = `سعر أوقية ${matchedOffer.productName} هو ${matchedOffer.regularPrice} ريال.`;
+        const card: ProductCardData = {
+          id: `${matchedOffer.catalogItemId || matchedOffer.id}_ounce`,
+          name: catItem ? `${catItem.name} - ${ounceVariant?.variantName || 'الأوقية'}` : `${matchedOffer.productName} - الأوقية`,
+          category: 'العود المحسن',
+          variant: ounceVariant?.displayedWeight || '٢٨ جم',
+          price: matchedOffer.regularPrice,
+          priceDisplay: `${matchedOffer.regularPrice} ريال`,
+          description: catItem?.notes || `أوقية مفردة (28 جم) بالسعر الأصلي المعتمد في الكتالوج.`,
+          inStock: true,
+          imageUrl: catItem?.imageUrl || null,
+          productUrl: catItem?.productUrl,
+          hasDirectPage: true,
+        };
+
+        return {
+          reply,
+          suggestions: [`وش عرض ${matchedOffer.productName}؟`],
+          productCards: [card],
+        };
+      } else {
+        // لا يوجد سعر أصلي مسجل للأوقية المفردة في الكتالوج (مثل كلمنتان أو مروكي شيوخ)
+        const reply = `المنتج متوفر ضمن عروض العود المحسن بسعر 99 ريال لـ ${matchedOffer.offer.quantity} للعرض كاملاً.`;
+        return {
+          reply,
+          suggestions: [],
+          productCards: [],
+        };
+      }
+    }
+  }
+
   // "كم سعر كيلو التايقر الكمبودي؟" or "سعر كيلو التايقر"
   if ((normUser.includes('تايقر') || normUser.includes('تايجر')) && normUser.includes('كيلو') && (normUser.includes('كم') || normUser.includes('سعر') || normUser.includes('بكم'))) {
     const tigerKilo = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_1_kilo') || MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_1');
@@ -807,7 +1329,7 @@ function tryDirectLookup(
         name: catalogItem.name,
         category: catalogItem.category,
         variant: catalogItem.variants[0]?.variantName || 'متوفر',
-        price: catalogItem.displayedCardPrice,
+        price: catalogItem.displayedCardPrice ?? undefined,
         priceDisplay: catalogItem.variants[0]?.priceDisplay || `${catalogItem.displayedCardPrice} ريال`,
         description: catalogItem.notes,
         inStock: isAvail,
@@ -1369,7 +1891,7 @@ function processProductCardsForQuery(
         name: item.name,
         category: item.category,
         variant: item.variants[0]?.variantName,
-        price: item.displayedCardPrice ?? item.variants[0]?.price,
+        price: (item.displayedCardPrice ?? item.variants[0]?.price) ?? undefined,
         priceDisplay: item.variants[0]?.priceDisplay,
         description: item.notes,
         inStock: true,

@@ -1,4 +1,4 @@
-import { CatalogItem } from '../types.ts';
+import { CatalogItem, EnhancedOudOfferItem } from '../types.ts';
 import {
   CONFIRMED_EMPTY_BAGS,
   OFFICIAL_ACTIVE_OFFERS,
@@ -1439,4 +1439,257 @@ export function findOptionsByBudget(maxBudget: number, minBudget: number = 0): A
 
   // فرز حسب الأقرب للميزانية نزولاً
   return matches.sort((a, b) => b.price - a.price);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// عروض العود المحسن الرسمية المعتمدة (باقة الـ 99 ريال الخاصة)
+// ═══════════════════════════════════════════════════════════════════
+// ملاحظة صارمة:
+// 1. هذه العروض ليست تغييراً على السعر الأصلي للأوقية في قاعدة البيانات.
+// 2. لكل منتج يتم الاحتفاظ بشكل منفصل بـ:
+//    - السعر الأصلي للأوقية كما هو موجود حالياً في قاعدة البيانات.
+//    - وحدة السعر الأصلي: أوقية.
+//    - سعر العرض: 99 ريال للعرض كاملاً.
+//    - عدد الأوقيات داخل العرض (2 أو 3 أو 4 أوقيات).
+// 3. ممنوع اعتبار 99 ريال سعر الأوقية.
+// 4. لا تخترع أي سعر أصلي غير موجود في قاعدة البيانات، ولا تجعل العرض متاحاً لمنتج غير الـ16 المحددة.
+export const ENHANCED_OUD_OFFERS: EnhancedOudOfferItem[] = [
+  {
+    id: 'enh_offer_tiger_gold',
+    productName: 'تايقر ذهبي',
+    catalogItemId: 'enh_1',
+    aliases: ['تايقر ذهبي', 'التايقر الذهبي', 'تايقر ذهبي 35', 'التايقر الذهبي 35', 'تايجر ذهبي'],
+    regularPrice: 35,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '3 أوقيات',
+      ouqiyasCount: 3,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_tiger_cambodian',
+    productName: 'تايقر كمبودي',
+    catalogItemId: 'enh_4',
+    aliases: ['تايقر كمبودي', 'عود تايقر كمبودي', 'التايقر الكمبودي', 'عود كمبودي تايقر', 'كمبودي تايقر', 'تايجر كمبودي'],
+    regularPrice: 30,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '4 أوقيات',
+      ouqiyasCount: 4,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_farasha',
+    productName: 'فراشة',
+    catalogItemId: 'enh_13',
+    aliases: ['فراشة', 'عود الفراشة', 'عود فراشة', 'الفراشة الكمبودية', 'عود الفراشة الكمبودية', 'الفراشة'],
+    regularPrice: 30,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '4 أوقيات',
+      ouqiyasCount: 4,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_zawaya_vietnam',
+    productName: 'زوايا فيتنامي',
+    catalogItemId: 'enh_9',
+    aliases: ['زوايا فيتنامي', 'زوايا كينغ فيتنامي', 'زوايا كنج فيتنامي', 'عود زوايا فيتنامي', 'الزوايا الفيتنامي'],
+    regularPrice: 75,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '2 أوقية',
+      ouqiyasCount: 2,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_syufi_royal',
+    productName: 'سيوفي رويال',
+    catalogItemId: 'enh_7',
+    aliases: ['سيوفي رويال', 'السيوفي الرويال', 'عود سيوفي رويال', 'سيوفي رويال 100', 'السيوفي رويال'],
+    regularPrice: 100,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '2 أوقية',
+      ouqiyasCount: 2,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_syufi_king_vietnam',
+    productName: 'سيوفي كنج فيتنامي',
+    catalogItemId: 'enh_6',
+    aliases: ['سيوفي كنج فيتنامي', 'سيوفي كينغ فيتنامي', 'السيوفي كينغ', 'السيوفي كنج', 'سيوفي كينغ', 'سيوفي كنج'],
+    regularPrice: 100,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '2 أوقية',
+      ouqiyasCount: 2,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_zawaya_special_vietnam',
+    productName: 'زوايا سبيشال فيتنامي',
+    catalogItemId: 'enh_10',
+    aliases: ['زوايا سبيشال فيتنامي', 'زوايا فيتنامي سبيشل', 'زوايا سبيشل فيتنامي', 'زوايا سبيشل', 'زوايا سبيشال', 'زوايا فيتنامي سبيشال'],
+    regularPrice: 75,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '2 أوقية',
+      ouqiyasCount: 2,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_daqqa_cambodian',
+    productName: 'دقة كمبودي',
+    catalogItemId: 'enh_14',
+    aliases: ['دقة كمبودي', 'دقة العود الكمبودي', 'الدقة الكمبودية', 'عود دقة كمبودي', 'دقة كمبودية'],
+    regularPrice: 50,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '3 أوقيات',
+      ouqiyasCount: 3,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_moroki_vietnam',
+    productName: 'مروكي فيتنامي',
+    catalogItemId: 'enh_8',
+    aliases: ['مروكي فيتنامي', 'المروكي الفيتنامي', 'موروكي فيتنامي', 'عود مروكي فيتنامي', 'عود موروكي فيتنامي'],
+    regularPrice: 75,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '3 أوقيات',
+      ouqiyasCount: 3,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_syufi_vietnam',
+    productName: 'سيوفي فيتنامي',
+    catalogItemId: 'enh_15',
+    aliases: ['سيوفي فيتنامي', 'عود السيوفي الفيتنامي', 'السيوفي الفيتنامي', 'عود سيوفي فيتنامي'],
+    regularPrice: 50,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '3 أوقيات',
+      ouqiyasCount: 3,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_kalimantan',
+    productName: 'كلمنتان',
+    catalogItemId: undefined,
+    aliases: ['كلمنتان', 'عود كلمنتان', 'الكلمنتان', 'كلمنتان محسن'],
+    regularPrice: null, // لا يوجد سعر منفصل للأوقية في قاعدة البيانات الحالية، لا نخترع سعراً
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '2 أوقية',
+      ouqiyasCount: 2,
+      type: 'عرض عود محسن',
+    },
+    notes: 'عرض عود محسن خاص: أوقيتين بـ 99 ريال.',
+  },
+  {
+    id: 'enh_offer_moroki_tamayoz',
+    productName: 'مروكي تميز',
+    catalogItemId: 'enh_5',
+    aliases: ['مروكي تميز', 'موروكي التميز', 'مروكي التميز', 'موروكي تميز', 'موروكي التميز 95', 'مروكي تميز 95'],
+    regularPrice: 95,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '2 أوقية',
+      ouqiyasCount: 2,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_moroki_malaki',
+    productName: 'مروكي ملكي',
+    catalogItemId: 'enh_2',
+    aliases: ['مروكي ملكي', 'موروكي الملكي', 'مروكي الملكي', 'موروكي ملكي', 'موروكي الملكي 75', 'مروكي ملكي 75'],
+    regularPrice: 75,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '2 أوقية',
+      ouqiyasCount: 2,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_moroki_shuyookh',
+    productName: 'مروكي شيوخ',
+    catalogItemId: undefined,
+    aliases: ['مروكي شيوخ', 'موروكي شيوخ', 'المروكي الشيوخ', 'مروكي الشيوخ', 'عود مروكي شيوخ'],
+    regularPrice: null, // لا يوجد سعر منفصل للأوقية في قاعدة البيانات الحالية، لا نخترع سعراً
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '2 أوقية',
+      ouqiyasCount: 2,
+      type: 'عرض عود محسن',
+    },
+    notes: 'عرض عود محسن خاص: أوقيتين بـ 99 ريال.',
+  },
+  {
+    id: 'enh_offer_daqqa_midhal',
+    productName: 'دقة مدهال',
+    catalogItemId: 'enh_3',
+    aliases: ['دقة مدهال', 'دقة مدهال 65', 'عود دقة مدهال', 'الدقة مدهال'],
+    regularPrice: 65,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '2 أوقية',
+      ouqiyasCount: 2,
+      type: 'عرض عود محسن',
+    },
+  },
+  {
+    id: 'enh_offer_moroki_mini',
+    productName: 'مروكي ميني',
+    catalogItemId: 'enh_11',
+    aliases: ['مروكي ميني', 'موروكي ميني', 'عود موروكي ميني محسن 30', 'عود مروكي ميني', 'المروكي الميني'],
+    regularPrice: 30,
+    regularUnit: 'أوقية',
+    offer: {
+      price: 99,
+      quantity: '4 أوقيات',
+      ouqiyasCount: 4,
+      type: 'عرض عود محسن',
+    },
+  },
+];
+
+export function findEnhancedOudOffer(query: string): EnhancedOudOfferItem | undefined {
+  const norm = query.toLowerCase().trim();
+  return ENHANCED_OUD_OFFERS.find((item) =>
+    item.productName.toLowerCase() === norm ||
+    item.aliases.some((a) => norm.includes(a.toLowerCase()) || a.toLowerCase().includes(norm))
+  );
+}
+
+export function getAllEnhancedOudOffers(): EnhancedOudOfferItem[] {
+  return ENHANCED_OUD_OFFERS;
 }
