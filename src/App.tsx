@@ -293,6 +293,7 @@ export default function App() {
         suggestions: Array.isArray(data.suggestions) && data.suggestions.length > 0 ? data.suggestions.slice(0, 3) : undefined,
         productCards: Array.isArray(data.productCards) && data.productCards.length > 0 ? data.productCards : undefined,
         timestamp: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+        telemetry: data.telemetry,
       };
 
       const finalMessages = [...updatedMessages, assistantMessage];
@@ -344,6 +345,76 @@ export default function App() {
     }
   };
 
+  const handleRateMessage = async (messageId: string, rating: 'positive' | 'negative') => {
+    let userQuery = '';
+    let assistantReply = '';
+    const conversationId = activeConversationId || '';
+    let modelUsed = 'Direct-Lookup (Zero-Tokens)';
+    let productCards: any[] = [];
+    let telemetry: any = null;
+    let isTogglingOff = false;
+
+    // Check if we are toggling off the active rating
+    const activeConv = conversations.find(c => c.conversationId === conversationId);
+    if (activeConv) {
+      const activeMsg = activeConv.messages.find(m => m.id === messageId);
+      if (activeMsg && activeMsg.rating === rating) {
+        isTogglingOff = true;
+      }
+    }
+
+    setConversations((prev) => {
+      return prev.map((c) => {
+        if (c.conversationId === conversationId) {
+          const updatedMessages = c.messages.map((m, idx) => {
+            if (m.id === messageId) {
+              assistantReply = m.content;
+              modelUsed = m.telemetry?.model || 'Direct-Lookup (Zero-Tokens)';
+              productCards = m.productCards || [];
+              telemetry = m.telemetry;
+              
+              if (idx > 0) {
+                userQuery = c.messages[idx - 1].content;
+              }
+
+              return {
+                ...m,
+                rating: isTogglingOff ? undefined : rating,
+              };
+            }
+            return m;
+          });
+          return {
+            ...c,
+            messages: updatedMessages,
+          };
+        }
+        return c;
+      });
+    });
+
+    const finalRating = isTogglingOff ? 'none' : rating;
+
+    try {
+      await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId,
+          messageId,
+          userQuery,
+          assistantReply,
+          rating: finalRating,
+          modelUsed,
+          productCards,
+          telemetry,
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to submit feedback:', err);
+    }
+  };
+
   if (isAdminRoute) {
     return <AdminDashboard />;
   }
@@ -378,6 +449,7 @@ export default function App() {
             messages={messages}
             isLoading={isLoading}
             onSendMessage={handleSendMessage}
+            onRateMessage={handleRateMessage}
           />
         </main>
       </div>

@@ -1,6 +1,19 @@
 import fs from 'fs';
 import path from 'path';
 
+export interface FeedbackItem {
+  id: string;
+  conversationId: string;
+  messageId: string;
+  userQuery: string;
+  assistantReply: string;
+  rating: 'positive' | 'negative';
+  timestamp: string;
+  modelUsed?: string;
+  productCards?: any[];
+  context?: any;
+}
+
 export interface UnansweredQuestion {
   id: string;
   question: string;
@@ -97,6 +110,7 @@ export interface AnalyticsData {
   unansweredQuestions: UnansweredQuestion[];
   answeredTopics: AnsweredTopic[];
   dailyMetrics: Record<string, DailyMetric>;
+  feedbacks?: FeedbackItem[];
 }
 
 // Default storage file path
@@ -363,6 +377,7 @@ function generateInitialData(): AnalyticsData {
       },
     ],
     dailyMetrics: daily,
+    feedbacks: [],
   };
 }
 
@@ -383,6 +398,7 @@ class AnalyticsService {
         const raw = fs.readFileSync(filePath, 'utf-8');
         const parsed = JSON.parse(raw);
         if (parsed && parsed.site && parsed.agent && parsed.tokens) {
+          if (!parsed.feedbacks) parsed.feedbacks = [];
           return parsed;
         }
       }
@@ -805,6 +821,67 @@ class AnalyticsService {
       answeredTopics: this.data.answeredTopics.slice(0, 10),
       dailyChart: filteredDaily,
     };
+  }
+
+  // Record a feedback from customer
+  public recordFeedback(info: {
+    conversationId: string;
+    messageId: string;
+    userQuery: string;
+    assistantReply: string;
+    rating: 'positive' | 'negative' | 'none';
+    modelUsed?: string;
+    productCards?: any[];
+    telemetry?: any;
+  }): void {
+    if (!this.data.feedbacks) {
+      this.data.feedbacks = [];
+    }
+
+    const nowIso = new Date().toISOString();
+
+    // Remove any previous feedback for the exact same message to allow toggling rating
+    this.data.feedbacks = this.data.feedbacks.filter(
+      (f) => f.messageId !== info.messageId
+    );
+
+    if (info.rating === 'none') {
+      this.scheduleSave();
+      return;
+    }
+
+    const feedbackItem: FeedbackItem = {
+      id: `fb_item_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      conversationId: info.conversationId,
+      messageId: info.messageId,
+      userQuery: this.sanitizeText(info.userQuery || 'لم يتوفر سؤال سابق'),
+      assistantReply: info.assistantReply || '',
+      rating: info.rating,
+      timestamp: nowIso,
+      modelUsed: info.modelUsed || 'Direct-Lookup (Zero-Tokens)',
+      productCards: info.productCards || [],
+      context: info.telemetry ? {
+        responseTimeMs: info.telemetry.responseTimeMs,
+        totalTokens: info.telemetry.totalTokens,
+        promptTokens: info.telemetry.promptTokens,
+        candidateTokens: info.telemetry.candidateTokens,
+        isDirectLookup: info.telemetry.isDirectLookup
+      } : undefined
+    };
+
+    this.data.feedbacks.unshift(feedbackItem);
+    
+    // Keep max 200 feedback records for storage sanity
+    if (this.data.feedbacks.length > 200) {
+      this.data.feedbacks = this.data.feedbacks.slice(0, 200);
+    }
+
+    this.scheduleSave();
+  }
+
+  // Expose feedbacks to dashboard
+  public getFeedbacks(): FeedbackItem[] {
+    return this.data.feedbacks || [];
   }
 
   // Admin Auth Helpers

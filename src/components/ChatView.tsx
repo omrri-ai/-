@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Flame, User, Copy, Check, CornerDownLeft, Sparkles, SlidersHorizontal, ExternalLink } from 'lucide-react';
+import { Send, Flame, User, Copy, Check, CornerDownLeft, Sparkles, SlidersHorizontal, ExternalLink, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Message } from '../types.ts';
 import { ProductCard } from './ProductCard.tsx';
@@ -142,12 +142,14 @@ interface ChatViewProps {
   messages: Message[];
   isLoading: boolean;
   onSendMessage: (text: string) => void;
+  onRateMessage?: (messageId: string, rating: 'positive' | 'negative') => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
   messages,
   isLoading,
   onSendMessage,
+  onRateMessage,
 }) => {
   const [inputText, setInputText] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -331,6 +333,34 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           </span>
                         )}
                       </button>
+
+                      {/* Thumbs up/down buttons */}
+                      <div className="flex items-center gap-1 border-r border-[#2d241a] pr-2 mr-1">
+                        <button
+                          type="button"
+                          onClick={() => onRateMessage?.(msg.id, 'positive')}
+                          className={`transition-all duration-200 active:scale-90 p-1 rounded-md flex items-center justify-center cursor-pointer ${
+                            msg.rating === 'positive'
+                              ? 'text-[#ffd983] bg-[#c99738]/15'
+                              : 'text-[#7d7061] hover:text-[#ffd983] hover:bg-[#231a12]'
+                          }`}
+                          title="مفيد"
+                        >
+                          <ThumbsUp className="w-3.5 h-3.5" strokeWidth={1.75} fill={msg.rating === 'positive' ? "currentColor" : "none"} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onRateMessage?.(msg.id, 'negative')}
+                          className={`transition-all duration-200 active:scale-90 p-1 rounded-md flex items-center justify-center cursor-pointer ${
+                            msg.rating === 'negative'
+                              ? 'text-red-400 bg-red-500/10'
+                              : 'text-[#7d7061] hover:text-[#ef4444] hover:bg-[#231a12]'
+                          }`}
+                          title="غير مفيد"
+                        >
+                          <ThumbsDown className="w-3.5 h-3.5" strokeWidth={1.75} fill={msg.rating === 'negative' ? "currentColor" : "none"} />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

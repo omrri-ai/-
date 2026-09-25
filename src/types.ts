@@ -34,6 +34,16 @@ export interface Message {
     currentSubject?: string | null;
     confidenceNote?: string;
   };
+  rating?: 'positive' | 'negative' | null;
+  telemetry?: {
+    model: string;
+    responseTimeMs?: number;
+    promptTokens?: number;
+    candidateTokens?: number;
+    totalTokens?: number;
+    isDirectLookup?: boolean;
+    [key: string]: any;
+  };
 }
 
 export interface CustomerMessage extends Message {

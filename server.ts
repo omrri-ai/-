@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
@@ -162,6 +163,9 @@ function buildSystemInstruction(knowledge: MidhalKnowledgeBase, isFollowUp: bool
 - ادخل في صلب الإجابة مباشرة باختصار وطبيعية:
   * إذا سأل عن السعر أو المقاس: أجب مباشرة (مثال: "الأوقية بـ35 ريال، والثمن بـ125 ريال.").
   * إذا قال "طيب الكيلو؟": أجب مباشرة (مثال: "سعر الكيلو 800 ريال.").
+  * إذا قال "تمام" أو "زين" أو "شكراً" أو عبارة ختامية: انتهِ مباشرة وبطبيعية (مثل: "تمام، حياك الله." أو "أبشر، بالخدمة.") دون روابط ودون كروت ودون أي أسئلة بيع!
+  * إذا طلب رابطاً لمنتج محدد: أرسل رابط ذلك المنتج فقط دون أي روابط أخرى.
+  * إذا سأل عن الفرق بين منتجين (مثل الإيراني والمغربي): اشرح الفرق دون كروت ودون روابط.
   * إذا سأل عن الزعفران أو غيّر الموضوع: أجب مباشرة بالبيانات المؤكدة دون ديباجة ولا تذكر العود القديم.
 `
     : `
@@ -174,6 +178,122 @@ function buildSystemInstruction(knowledge: MidhalKnowledgeBase, isFollowUp: bool
 (غير جاف، وغير مبالغ في المجاملة والتكلف).
 
 ${followUpDirective}
+
+══════════════════════════════════════════════════
+قواعد فهم نوع السؤال، عدم عرض العروض تلقائياً، والتمييز الصارم بين السعر والوزن والعرض (ملزمة لجميع النماذج):
+══════════════════════════════════════════════════
+1. افهم نوع السؤال قبل البحث:
+   - لا تعتبر كل سؤال متابعة سؤالاً عن السعر، ولا تعرض أي خصم أو عرض تلقائياً من بداية المحادثة.
+   - إذا بدأ العميل بالسؤال عن منتج أو سعره، اعرض السعر الأصلي المعتمد في بيانات المنتج أولاً (مثال لعود تايقر كمبودي: الأوقية بـ 30 ريال، والكيلو بـ 800 ريال).
+   - لا تعرض سعر العرض أو الخصم إلا إذا سأل العميل صراحة عن العرض أو طلب معرفة الخصم أو الخيارات المتاحة.
+   - إذا قال العميل: "بكم الكيلو؟" -> ابحث عن سعر الكيلو الأصلي لنفس المنتج الموجود في السياق، ولا تستبدله بسعر العرض إلا إذا طلب العميل العرض أو كان السؤال عن السعر بعد الخصم.
+   - إذا قال: "الكيلو كم أوقية؟" -> فهذا سؤال عن التحويل بين الوزن والوحدة وليس عن السعر!
+     بما أن الأوقية المعتمدة في النظام = 28 جم:
+     1000 جم ÷ 28 جم = حوالي 35.7 أوقية.
+     الإجابة المطلوبة حرفياً: "الكيلو يعادل تقريبًا 35.7 أوقية، على أساس أن الأوقية عندنا 28 جم."
+     ممنوع منعاً باتاً عرض بطاقة الأوقية أو ذكر سعرها أو ذكر العرض، لأن العميل لم يسأل عن السعر! (CARDS: []).
+
+2. لا تخلط بين أسئلة الوزن والسعر والعرض:
+   هذه أسئلة مختلفة تماماً ويجب أن يعالج كل سؤال المطلوب تحديداً:
+   - "كم سعر الأوقية؟" -> السعر الأصلي للأوقية فقط، ولا تعرض سعر العرض إلا إذا طلب العميل ذلك.
+   - "كم وزن العرض؟" -> كمية العرض (مثلاً: 4 أوقيات = 112 جم).
+   - "وش يجي في العرض؟" -> محتويات العرض.
+   - "الكيلو كم أوقية؟" -> تحويل وزن (35.7 أوقية تقريباً).
+   - "وش الأوفر، الكيلو أو العرض؟" -> مقارنة سعرية فعلية بين الخيارين.
+
+3. عند مقارنة الكيلو بالعرض:
+   إذا قال العميل: "وش الأوفر آخذ بالكيلو أو بالعرض؟":
+   لا تجب بمجرد إعادة سعر العرض.
+   قارن فعلياً بالأرقام المعتمدة:
+   - سعر العرض
+   - عدد الأوقيات في العرض
+   - وزن الأوقية (28 جم)
+   - الوزن الإجمالي للعرض
+   - سعر الكيلو الأصلي
+   - أي خصم مطبق على العرض، إن وُجد
+   ثم وضّح الحساب والنتيجة باختصار، وبيّن أن المقارنة مبنية على السعر الأصلي للكيلو مقابل سعر العرض الفعلي:
+   (مثال تايقر كمبودي: الكيلو 800 ريال لـ 1000 جم يحسب الأوقية بحوالي 22.4 ريال [الجرام بـ 0.80 ريال] وهو الأوفر لكل جرام وأوقية، بينما العرض 4 أوقيات = 112 جم بـ 99 ريال يحسب الأوقية بـ 24.75 ريال [الجرام بحوالي 0.88 ريال] وميزته توفير كمية مناسبة بمبلغ قليل دون الحاجة لدفع قيمة الكيلو كاملاً).
+   إذا كانت المقارنة لا يمكن حسابها بدقة من البيانات المتوفرة، قل ذلك بوضوح بدل اختراع نتيجة.
+
+4. لا تعرض Product Card إلا عندما تكون مفيدة للسؤال:
+   - إذا كان العميل يسأل سؤالاً معلوماتياً بسيطاً مثل: "الكيلو كم أوقية؟" أو "كم أوقية فيه؟" أو المقارنة -> لا حاجة لإظهار بطاقة منتج (CARDS: []).
+   - إذا سأل: "كم سعر الكيلو؟" -> يمكن عرض بطاقة الكيلو إذا كانت موجودة ومرتبطة مباشرة بالإجابة، مع عرض السعر الأصلي أولاً.
+   - إذا قال: "وش عرض تايقر؟" -> يمكن عرض بطاقة العرض المحدد فقط، مع توضيح سعر العرض ومحتوياته.
+   - لا تعرض بطاقات إضافية لم يطلبها العميل، ولا تعرض بطاقة عرض لمجرد وجود خصم في بيانات المنتج.
+
+5. لا تعيد روابط أو بطاقات لمجرد انتهاء الرد:
+   إذا أجاب المساعد عن سؤال العميل وانتهى السؤال، ينتهي الرد.
+   لا تضف: روابط عشوائية، منتجات إضافية، عروض أخرى، "هل أعتمد لك؟"، "هل تريد إضافة..."، روابط لعدة منتجات.
+
+6. حافظ على المنتج الحالي في السياق:
+   العميل: "أبي تايقر كمبودي"
+   ثم: "وش عرض تايقر؟" -> المقصود عرض تايقر كمبودي.
+   ثم: "كم أوقية فيه؟" -> المقصود كمية الأوقيات في نفس العرض (4 أوقيات = 112 جم).
+   ثم: "طيب كم سعر الأوقية العادية؟" -> المقصود سعر الأوقية العادية الأصلي لنفس التايقر (30 ريال)، وليس سعرها ضمن عرض أو خصم.
+   لا تبدأ بحثاً جديداً في كل رسالة.
+
+7. لا تستخدم آخر رسالة وحدها:
+   قبل الإجابة على أي متابعة، افهم:
+   - آخر منتج واضح في السياق
+   - آخر عرض تمت مناقشته
+   - آخر وزن
+   - آخر خيار
+   - السؤال الجديد
+   - هل السؤال متابعة أم تغيير موضوع
+   - هل العميل يسأل عن السعر الأصلي أم عن عرض أو خصم
+   إذا كان السؤال مرتبطاً بالمحادثة السابقة، استمر على نفس المنتج.
+   إذا غيّر العميل الموضوع بوضوح، انتقل للموضوع الجديد ولا تسحب منتجات من الموضوع السابق.
+   إذا لم يطلب العميل عرضاً أو خصماً، لا تقدمه تلقائياً، وابدأ بالسعر الأصلي أو المعلومة الأساسية المطلوبة.
+
+══════════════════════════════════════════════════
+قواعد ختام الرد الصارمة، عدم افتراض الشراء، وعدم إضافة روابط تلقائية (قواعد ذهبية ملزمة لجميع النماذج):
+══════════════════════════════════════════════════
+1. أجب على قدر سؤال العميل فقط:
+   - إذا سأل العميل عن منتج أو سعر أو استخدام أو فرق بين منتجين، أجب عن المطلوب وانتهِ بشكل طبيعي دون زيادات إنشائية.
+   - لا تبحث عن شيء تضيفه من نفسك بعد اكتمال الإجابة.
+
+2. لا تفترض أن العميل يريد الشراء أبداً:
+   - مجرد أن العميل سأل أو ناقش منتجاً أو استفسر عن سعره لا يعني أنه يريد طلبه!
+   - ممنوع منعاً باتاً اختتام الرد بأسئلة أو عبارات بيعية مثل:
+     * "هل تود إضافة أحد هذه المنتجات؟"
+     * "هل أعتمد لك الطلب؟"
+     * "تقدر تشوف هذه الخيارات..."
+     * "أعتمد لك واحد منهم؟"
+     * "إذا حاب أعتمد لك الطلب..."
+     إلا إذا كان العميل قد طلب الشراء صراحة وبوضوح ("أبي أطلبه"، "اعتمد لي"، "أبي آخذ منه"، "كيف أطلبه").
+
+3. الاقتراح والترشيح شيء، والشراء شيء آخر:
+   - إذا طلب العميل ترشيحاً ("أبي عود للمجلس")، رشح له الخيارات المناسبة حسب البيانات.
+   - إذا انتهى من الترشيح وقال العميل: "تمام"، "زين"، "تمام، زين"، "ممتاز"، "واضح"، "شكراً"، "الله يعطيك العافية"، أو غيّر الموضوع:
+     هنا انتهى الحوار بشكل طبيعي!
+     تكون نهاية الرد قصيرة وطبيعية جداً: "تمام، حياك الله." أو "أبشر، بالخدمة دائماً." أو "العفو، بالخدمة دائماً."
+     ممنوع منعاً باتاً عرض روابط، وممنوع إخراج أي كروت إضافية (CARDS: [])، وممنوع السؤال "هل أعتمد لك؟"، وممنوع إضافة منتجات أخرى!
+
+4. لا تضف روابط من نفسك إطلاقاً (لا طلب = لا روابط):
+   - الرابط يظهر في النص فقط في الحالات التالية حصراً:
+     أ) العميل طلب الرابط صراحة ("أرسل الرابط"، "وين الرابط"، "عطني الرابط"، "رابط موروكي الملكي").
+     ب) العميل طلب شراء أو اعتماد منتج محدد ("أبي أطلبه"، "اعتمد لي").
+     ج) العميل طلب فتح أو مشاهدة صفحة منتج محدد ("أبي أشوفه"، "ورني إياه").
+     د) توجد بطاقة لمنتج محدد طلبه العميل أو تم اختياره بوضوح ضمن سياق الطلب.
+   - ممنوع نهائياً إرسال روابط لـ 3 منتجات أو أكثر لمجرد إنهاء الرد أو كدليل للموقع!
+   - إذا لم يطلب العميل رابطاً، لا تضع أي رابط في نص الرد.
+
+5. إذا كان العميل يريد رابطاً، أعطه الرابط المحدد فقط:
+   - مثال: العميل: "أرسل رابط موروكي الملكي" ← ترسل رابط موروكي الملكي فقط!
+   - لا ترسل معه روابط موروكي أخرى أو شنط أو أدهان إلا إذا طلبها العميل تحديداً.
+   - إذا كان السياق السابق يتحدث عن منتج محدد (مثل موروكي الملكي) ثم قال: "أرسل الرابط"، افهم المقصود وأرسل رابط ذلك المنتج فقط.
+
+6. إذا لم يطلب العميل شيئاً إضافياً، لا تضف شيئاً إضافياً:
+   - تكون نهاية الرد قصيرة وطبيعية: "أبشر." أو "تمام، حياك الله." أو تنتهي الإجابة مباشرة إذا كانت مكتملة.
+
+7. لا تجعل كل رد فرصة بيع:
+   - وظيفة المساعد أولاً هي فهم سؤال العميل والإجابة عليه.
+   - الترشيح يكون عندما يطلب العميل ترشيحاً أو عندما تكون المعلومة الناقصة ضرورية لفهم طلبه.
+   - الروابط والشراء تكون عند وجود طلب واضح وصريح لذلك.
+
+8. الحفاظ على السياق مستمر:
+   - إذا رجع العميل بعد ذلك وقال: "طيب كم الكيلو؟" أو "أرسل الرابط." أو "أبي آخذ منه.":
+     استخدم سياق المحادثة السابق وافهم المقصود دون أن تطلب منه إعادة اسم المنتج إذا كان واضحاً.
 
 ══════════════════════════════════════════════════
 المرجع التجاري الأساسي الصارم:
@@ -541,6 +661,11 @@ function extractConversationState(
       currentProductId = 'enh_6';
       currentProductName = 'السيوفي كينغ 100';
       currentType = 'محسن';
+    } else if (text.includes('ملكي') || text.includes('الملكي')) {
+      currentSection = 'العود المحسن';
+      currentProductId = 'enh_2';
+      currentProductName = 'موروكي الملكي 75';
+      currentType = 'محسن';
     }
 
     // Capture usage in history
@@ -622,29 +747,49 @@ function extractConversationState(
       currentProductName = 'عود تايقر كمبودي 30';
     }
     currentType = 'محسن';
+  } else if (normUser.includes('ملكي') || normUser.includes('الملكي')) {
+    currentSection = 'العود المحسن';
+    currentProductId = 'enh_2';
+    currentProductName = 'موروكي الملكي 75';
+    currentType = 'محسن';
   }
 
-  // Weight detection
-  if (normUser.includes('كيلو') && !normUser.includes('نص') && !normUser.includes('ربع') && !normUser.includes('ثمن')) {
-    requestedWeight = 'الكيلو';
-  } else if (normUser.includes('نصف') || normUser.includes('نص')) {
-    requestedWeight = 'النصف';
-  } else if (normUser.includes('ربع') && !normUser.includes('ربع تولة')) {
-    requestedWeight = 'الربع';
-  } else if (normUser.includes('ثمن')) {
-    requestedWeight = 'الثمن';
-  } else if (normUser.includes('أوقية') || normUser.includes('اوقية')) {
-    requestedWeight = 'الأوقية';
-  } else if (normUser.includes('أبو 45') || normUser.includes('ابو 45') || normUser.includes('5 جرام')) {
-    requestedWeight = '5 جرام';
-  } else if (normUser.includes('10 جرام') || normUser.includes('عشرة جرام')) {
-    requestedWeight = '10 جرام';
-  } else if (normUser.includes('6 جرام') || normUser.includes('ستة جرام')) {
-    requestedWeight = '6 جرام';
-  } else if (normUser.includes('ربع تولة')) {
-    requestedWeight = 'ربع تولة';
-  } else if (normUser.includes('تولة') && !normUser.includes('ربع') && !normUser.includes('نصف')) {
-    requestedWeight = 'تولة';
+  // Weight conversion and comparison guards
+  const isWeightConversion =
+    (normUser.includes('كم أوقية') || normUser.includes('كم اوقية') || normUser.includes('كم أوقيه') || normUser.includes('كم اوقيه')) &&
+    (normUser.includes('كيلو') || normUser.includes('الكيلو'));
+  const isKiloVsOffer =
+    (normUser.includes('أوفر') || normUser.includes('اوفر') || normUser.includes('ارخص') || normUser.includes('أرخص')) &&
+    (normUser.includes('كيلو') || normUser.includes('الكيلو')) &&
+    (normUser.includes('عرض') || normUser.includes('العرض'));
+  const isOfferQuantity =
+    normUser.includes('كم أوقية فيه') || normUser.includes('كم اوقية فيه') || normUser.includes('كم اوقيه فيه') || normUser.includes('كم أوقيه فيه') ||
+    normUser.includes('أوقية فيه') || normUser.includes('اوقية فيه') || normUser.includes('كم وزن العرض') || normUser.includes('وش يجي في العرض') ||
+    normUser.includes('وش يجي فيه');
+
+  // Weight detection (only if not a weight conversion or comparison)
+  if (!isWeightConversion && !isKiloVsOffer) {
+    if (normUser.includes('كيلو') && !normUser.includes('نص') && !normUser.includes('ربع') && !normUser.includes('ثمن')) {
+      requestedWeight = 'الكيلو';
+    } else if (normUser.includes('نصف') || normUser.includes('نص')) {
+      requestedWeight = 'النصف';
+    } else if (normUser.includes('ربع') && !normUser.includes('ربع تولة')) {
+      requestedWeight = 'الربع';
+    } else if (normUser.includes('ثمن')) {
+      requestedWeight = 'الثمن';
+    } else if (normUser.includes('أوقية') || normUser.includes('اوقية')) {
+      requestedWeight = 'الأوقية';
+    } else if (normUser.includes('أبو 45') || normUser.includes('ابو 45') || normUser.includes('5 جرام')) {
+      requestedWeight = '5 جرام';
+    } else if (normUser.includes('10 جرام') || normUser.includes('عشرة جرام')) {
+      requestedWeight = '10 جرام';
+    } else if (normUser.includes('6 جرام') || normUser.includes('ستة جرام')) {
+      requestedWeight = '6 جرام';
+    } else if (normUser.includes('ربع تولة')) {
+      requestedWeight = 'ربع تولة';
+    } else if (normUser.includes('تولة') && !normUser.includes('ربع') && !normUser.includes('نصف')) {
+      requestedWeight = 'تولة';
+    }
   }
 
   // Usage detection
@@ -665,7 +810,15 @@ function extractConversationState(
   }
 
   // Intent detection
-  if (normUser.includes('قارن') || normUser.includes('بينهم')) {
+  if (isWeightConversion) {
+    lastIntent = 'تحويل وزن (الكيلو كم أوقية)';
+  } else if (isKiloVsOffer) {
+    lastIntent = 'مقارنة بين الكيلو والعرض';
+  } else if (isOfferQuantity) {
+    lastIntent = 'استفسار عن كمية ومحتويات العرض';
+  } else if (normUser.includes('عرض') || normUser.includes('العرض')) {
+    lastIntent = 'استفسار عن العرض';
+  } else if (normUser.includes('قارن') || normUser.includes('بينهم')) {
     lastIntent = 'مقارنة بين منتجات';
   } else if (normUser.includes('سعر') || normUser.includes('كم') || normUser.includes('بكم') || normUser.includes('سعره')) {
     lastIntent = 'استفسار عن السعر';
@@ -688,10 +841,220 @@ function extractConversationState(
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// Helper utilities for ending replies, zero unrequested links, and sales pruning
+// ═══════════════════════════════════════════════════════════════════
+
+export function isPureAcknowledgmentOrEnding(msg: string): boolean {
+  if (!msg) return false;
+  // Normalize punctuation: replace all Arabic, English, and common punctuation with space, lowercase, collapse whitespace
+  const norm = msg
+    .trim()
+    .replace(/[.,،؛;!؟?:\-"'()«»\[\]\/\\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  if (!norm) return false;
+
+  // If the user message contains question, comparison, price inquiry, link, or product request, it is NOT a pure acknowledgment
+  const nonAckKeywords = [
+    'كم', 'بكم', 'سعره', 'سعر', 'رابط', 'الرابط', 'أرسل', 'ارسل', 'عطني', 'وين',
+    'أبي', 'ابي', 'ابغى', 'أبغى', 'أطلب', 'اطلب', 'اعتمد', 'أعتمد', 'كيف', 'وش',
+    'ماهو', 'ما هو', 'هل', 'ليش', 'ليه', 'فرق', 'الفرق', 'قارن', 'ورني', 'شوفني',
+    'لكن', 'بس', 'غيره', 'نوع', 'ودي', 'عندي', 'عندك', 'عندكم', 'احجز', 'إحجز'
+  ];
+  const words = norm.split(' ');
+  for (const kw of nonAckKeywords) {
+    if (words.includes(kw) || norm.startsWith(kw + ' ')) {
+      return false;
+    }
+  }
+
+  const directAcks = new Set([
+    'تمام',
+    'تمام زين',
+    'زين تمام',
+    'زين',
+    'تمام ممتاز',
+    'ممتاز',
+    'شكرا',
+    'شكراً',
+    'مشكور',
+    'مشكوره',
+    'مشكورة',
+    'يعطيك العافية',
+    'الله يعطيك العافية',
+    'يعطيك العافيه',
+    'الله يعطيك العافيه',
+    'الله يعافيك',
+    'تسلم',
+    'تسلملي',
+    'تسلم لي',
+    'تسلم يا غالي',
+    'واضح',
+    'واضح شكرا',
+    'واضح شكراً',
+    'واضح ما قصرت',
+    'ما قصرت',
+    'ماقصرت',
+    'جزاك الله خير',
+    'الله يجزاك خير',
+    'اوكي',
+    'أوكي',
+    'ok',
+    'حياك الله',
+    'حياك',
+    'طيب شكرا',
+    'طيب شكراً',
+    'خلاص شكرا',
+    'خلاص شكراً',
+    'خلاص تمام',
+    'كفيت ووفيت',
+    'أبشر',
+    'ابشر',
+    'عافاك الله',
+    'الله يسعدك',
+    'يسعدك',
+    'شكرا لك',
+    'شكراً لك',
+    'تمام يعطيك العافية',
+    'تمام الله يعطيك العافية',
+    'زين يعطيك العافية',
+    'زين شكرا',
+    'الله يبيض وجهك',
+    'بيض الله وجهك',
+    'ألف شكر',
+    'الف شكر',
+    'لا شكرا',
+    'لا شكراً',
+    'سلامتك',
+    'الله يسلمك',
+    'مع السلامة',
+  ]);
+
+  if (directAcks.has(norm)) return true;
+
+  const tokens = norm.split(' ').filter(Boolean);
+  if (tokens.length >= 1 && tokens.length <= 6) {
+    const ackWords = new Set([
+      'تمام', 'زين', 'ممتاز', 'شكرا', 'شكراً', 'مشكور', 'مشكورة', 'مشكوره', 'يعطيك',
+      'العافية', 'العافيه', 'الله', 'يعافيك', 'تسلم', 'تسلملي', 'واضح', 'اوكي',
+      'أوكي', 'ok', 'قصرت', 'ما', 'ماقصرت', 'خير', 'جزاك', 'يجزاك', 'طيب',
+      'خلاص', 'حياك', 'أبشر', 'ابشر', 'لك', 'يا', 'غالي', 'كفيت', 'ووفيت', 'يسعدك',
+      'عافاك', 'بيض', 'وجهك', 'ألف', 'الف', 'سلامتك', 'يسلمك', 'مع', 'السلامة'
+    ]);
+    if (tokens.every((t) => ackWords.has(t))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function pruneUnsolicitedSalesEndings(text: string, userAskedToBuy: boolean): string {
+  if (userAskedToBuy || !text) return text;
+
+  let pruned = text;
+  const salesPatterns = [
+    /\n*.*(هل\s*(تود|ترغب|حاب|تحب|ودك)\s*(إضافة|اعتماد|طلب|في طلب|أن أعتمد|أعتمد لك|نعتمد لك)[^.!?؟\n]*[?؟]?)/gi,
+    /\n*.*(هل\s*أعتمد\s*لك\s*(الطلب|أحدهم|واحد منهم|منه|شي)[^.!?؟\n]*[?؟]?)/gi,
+    /\n*.*(أعتمد\s*لك\s*(الطلب|أحدهم|واحد منهم|منه|شي)[^.!?؟\n]*[?؟]?)/gi,
+    /\n*.*(تقدر\s*تشوف\s*هذه\s*الخيارات[^.!?؟\n]*)/gi,
+    /\n*.*(إذا\s*(حاب|تبي|ترغب|ودك)\s*أعتمد\s*لك[^.!?؟\n]*)/gi,
+    /\n*.*(حاب\s*(أعتمد|نعتمد)\s*لك[^.!?؟\n]*)/gi,
+    /\n*.*(جاهز\s*للطلب\s*أعتمد[^.!?؟\n]*)/gi,
+    /\n*.*(هل\s*يناسبك\s*اعتماد[^.!?؟\n]*[?؟]?)/gi,
+    /\n*.*(تحب\s*(أعتمد|نعتمد)\s*لك[^.!?؟\n]*[?؟]?)/gi,
+    /\n*.*(هل\s*تبي\s*(أعتمد|نعتمد)\s*لك[^.!?؟\n]*[?؟]?)/gi,
+    /\n*.*(تقدر\s*(تطلب|تطلبها|تطلبه)\s*الآن[^.!?؟\n]*)/gi,
+    /\n*.*(إذا\s*(تبي|حاب|ودك)\s*(تطلب|تطلبها|تطلبه)[^.!?؟\n]*)/gi,
+    /\n*.*(إذا\s*(تحب|حاب)\s*نعتمد[^.!?؟\n]*)/gi,
+  ];
+
+  for (const pat of salesPatterns) {
+    pruned = pruned.replace(pat, '').trim();
+  }
+  return pruned;
+}
+
+export function pruneUnsolicitedLinks(
+  text: string,
+  userAskedForLinks: boolean,
+  userAskedToBuy: boolean,
+  userAskedToOpen: boolean
+): string {
+  if (userAskedForLinks || userAskedToBuy || userAskedToOpen || !text) {
+    return text;
+  }
+  // Strip markdown links [label](url) -> label
+  let pruned = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '$1');
+  // Strip raw medhaloud URLs that are not requested
+  pruned = pruned.replace(/https?:\/\/medhaloud\.com[^\s)\]]*/g, '');
+  // Clean up any dangling link headers
+  pruned = pruned.replace(/(تفضل\s*)?(رابط|روابط)\s*:[^\n]*/gi, '');
+  pruned = pruned.replace(/\n\s*\n\s*\n/g, '\n\n').trim();
+  return pruned;
+}
+
+export function pruneLinksExceptSpecific(text: string, productName: string, targetUrl: string): string {
+  if (!text) return text;
+  let result = text.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, (match, label, url) => {
+    if (label.includes(productName) || url === targetUrl) {
+      return match;
+    }
+    return label;
+  });
+  result = result.replace(/https?:\/\/medhaloud\.com[^\s)\]]*/g, (match) => {
+    if (match === targetUrl) return match;
+    return '';
+  });
+  return result.trim();
+}
+
 interface DirectLookupResult {
   reply: string;
   suggestions: string[];
   productCards: ProductCardData[];
+}
+
+function computeKiloVsOfferComparison(
+  productName: string,
+  catalogItem: any,
+  offerItem: any
+): string {
+  const ouqiyasInOffer = offerItem?.offer?.ouqiyasCount || (offerItem?.offer?.quantity?.includes('4') ? 4 : (offerItem?.offer?.quantity?.includes('3') ? 3 : 2));
+  const offerPrice = offerItem?.offer?.price || 99;
+  const offerWeightGrams = ouqiyasInOffer * 28;
+  const pricePerOuqiyaInOffer = (offerPrice / ouqiyasInOffer).toFixed(2);
+  const pricePerGramInOffer = (offerPrice / offerWeightGrams).toFixed(2);
+
+  const kiloVariant = catalogItem?.variants?.find((v: any) => v.variantName === 'الكيلو' || (v.weightGrams && v.weightGrams >= 1000));
+  const kiloPrice = kiloVariant?.price || (catalogItem?.id === 'enh_4' || catalogItem?.id === 'enh_1' ? 800 : (catalogItem?.id === 'enh_5' ? 1600 : (catalogItem?.id === 'enh_2' ? 1700 : null)));
+
+  const cleanName = productName.replace(/\s*\d+$/, '');
+
+  if (!kiloPrice) {
+    return `بناءً على البيانات المعتمدة في المتجر، لا يتوفر سعر مسجل للكيلو لـ ${cleanName} لإجراء مقارنة دقيقة، ولكن سعر العرض هو ${offerPrice} ريال لـ ${offerItem?.offer?.quantity || 'العرض'} (${offerWeightGrams} جم).`;
+  }
+
+  const pricePerGramInKilo = (kiloPrice / 1000).toFixed(2);
+  const pricePerOuqiyaInKilo = ((kiloPrice / 1000) * 28).toFixed(2);
+
+  let explanation = `بالمقارنة الفعلية بين السعر الأصلي للكيلو وسعر العرض لـ ${cleanName}:\n`;
+  explanation += `- الكيلو (1000 جم بالسعر الأصلي ${kiloPrice} ريال): يعادل تقريباً 35.7 أوقية (على أساس أن الأوقية عندنا 28 جم)، وبذلك تحسب الأوقية عليك بحوالي ${pricePerOuqiyaInKilo} ريال (الجرام بـ ${pricePerGramInKilo} ريال).\n`;
+  explanation += `- العرض (${ouqiyasInOffer} أوقيات = ${offerWeightGrams} جم بـ ${offerPrice} ريال): تحسب الأوقية فيه بحوالي ${pricePerOuqiyaInOffer} ريال (الجرام بحوالي ${pricePerGramInOffer} ريال).\n\n`;
+
+  const isKiloCheaperPerGram = Number(pricePerGramInKilo) < Number(pricePerOuqiyaInOffer);
+  if (isKiloCheaperPerGram) {
+    explanation += `النتيجة:\n`;
+    explanation += `1. شراء الكيلو هو الأوفر من حيث التكلفة لكل جرام وأوقية (الأوقية بـ ${pricePerOuqiyaInKilo} ريال مقابل ${pricePerOuqiyaInOffer} ريال في العرض).\n`;
+    explanation += `2. العرض مناسب وموفر للميزانية إذا كنت ترغب بكمية وافرة (${ouqiyasInOffer} أوقيات) بمبلغ بسيط (${offerPrice} ريال فقط) دون الحاجة لدفع قيمة الكيلو كاملاً (${kiloPrice} ريال).`;
+  } else {
+    explanation += `النتيجة:\nالعرض هو الأوفر (${pricePerOuqiyaInOffer} ريال للأوقية مقابل ${pricePerOuqiyaInKilo} ريال في الكيلو).`;
+  }
+
+  return explanation;
 }
 
 function tryDirectLookup(
@@ -700,6 +1063,437 @@ function tryDirectLookup(
   history: Array<any>
 ): DirectLookupResult | null {
   const normUser = userMessage.toLowerCase().trim();
+
+  // 0.03 Specific requested product link for Moroki Al-Tamayuz (Quarter)
+  if (
+    (normUser.includes('تميز') || normUser.includes('التميز')) &&
+    (normUser.includes('رابط') || normUser.includes('لينك') || normUser.includes('الرابط') || normUser.includes('اللينك'))
+  ) {
+    const targetItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_5');
+    if (targetItem) {
+      return {
+        reply: `تفضل رابط موروكي التميز 95 (خيار الربع - 250 جم) المباشر على المتجر:\nhttps://medhaloud.com/العود-المحسن/c2090886574`,
+        suggestions: [],
+        productCards: [{
+          id: 'enh_5_quarter',
+          name: 'موروكي التميز 95 - الربع',
+          category: 'العود المحسن',
+          variant: 'ربع كيلو (٢٥٠ جم)',
+          price: 400,
+          priceDisplay: '400 ريال',
+          description: targetItem.notes,
+          inStock: true,
+          imageUrl: targetItem.imageUrl,
+          productUrl: 'https://medhaloud.com/العود-المحسن/c2090886574',
+          hasDirectPage: true,
+        }],
+      };
+    }
+  }
+
+  // 0.04 Specific requested product link for empty leather bag (Quarter Kilo)
+  if (
+    (normUser.includes('شنط') || normUser.includes('شنطه') || normUser.includes('شنطة') || normUser.includes('الجلدية') || normUser.includes('جلدية')) &&
+    (normUser.includes('رابط') || normUser.includes('لينك') || normUser.includes('الرابط') || normUser.includes('اللينك')) &&
+    (normUser.includes('ربع') || normUser.includes('٢٥٠') || normUser.includes('250'))
+  ) {
+    const emptyBag = MIDHAL_OFFICIAL_CATALOG.find((c) => c.isEmptyBag);
+    if (emptyBag) {
+      return {
+        reply: `تفضل رابط شنطة حفظ عود جلدية فارغة (خيار ربع كيلو - 250 جم) المباشر على المتجر:\nhttps://medhaloud.com/شنط-البخور/c1820942889`,
+        suggestions: [],
+        productCards: [{
+          id: 'acc_empty_bag_quarter',
+          name: 'شنطة حفظ عود جلدية فارغة',
+          category: 'الشنط',
+          variant: 'مقاس ربع كيلو (٢٥٠ جم)',
+          price: 25,
+          priceDisplay: '25  ريال',
+          description: 'شنطة جلدية فاخرة فارغة لحفظ البخور والعود.',
+          inStock: true,
+          imageUrl: emptyBag.imageUrl,
+          productUrl: 'https://medhaloud.com/شنط-البخور/c1820942889',
+          hasDirectPage: true,
+        }],
+      };
+    }
+  }
+
+  // 0. Pure Acknowledgment or Conversation Ending: ("تمام زين", "تمام", "زين", "شكرا", "تسلم", "ممتاز", "واضح")
+  // Strict rule: End naturally with ZERO product cards, ZERO links, and ZERO purchase push!
+  if (isPureAcknowledgmentOrEnding(normUser)) {
+    const isGratitude =
+      normUser.includes('شكر') ||
+      normUser.includes('يعطيك') ||
+      normUser.includes('تسلم') ||
+      normUser.includes('قصرت') ||
+      normUser.includes('خير') ||
+      normUser.includes('يسعدك');
+    const reply = isGratitude
+      ? 'العفو، حياك الله وبالخدمة دائماً.'
+      : 'تمام، حياك الله.';
+    return {
+      reply,
+      suggestions: [],
+      productCards: [],
+    };
+  }
+
+  // 0.05 Weight conversion inquiry ("الكيلو كم أوقية؟", "الكيلو كم اوقية", "كم أوقية في الكيلو")
+  // Strict rule: Conversion between weight and unit, NOT a price inquiry! NO product card!
+  const isKiloToOunceConversion =
+    /^(الكيلو|كيلو)\s*(هو\s*)?كم\s*(أوقية|اوقية|أوقيه|اوقيه)(\s*(فيه|يعادل))?(\s*(\?|؟))?$/i.test(normUser) ||
+    /^كم\s*(أوقية|اوقية|أوقيه|اوقيه)\s*(في|بال)?\s*(الكيلو|كيلو)(\s*فيه)?(\s*(\?|؟))?$/i.test(normUser) ||
+    normUser === 'الكيلو كم أوقية؟' || normUser === 'الكيلو كم أوقية' ||
+    normUser === 'الكيلو كم اوقية؟' || normUser === 'الكيلو كم اوقية' ||
+    normUser === 'الكيلو كم أوقيه؟' || normUser === 'الكيلو كم أوقيه' ||
+    normUser === 'الكيلو كم اوقيه؟' || normUser === 'الكيلو كم اوقيه' ||
+    normUser === 'كم أوقية في الكيلو؟' || normUser === 'كم أوقية في الكيلو' ||
+    normUser === 'كم اوقية في الكيلو؟' || normUser === 'كم اوقية في الكيلو' ||
+    normUser === 'كم أوقية الكيلو؟' || normUser === 'كم أوقية الكيلو' ||
+    normUser === 'كم اوقية الكيلو؟' || normUser === 'كم اوقية الكيلو' ||
+    ((normUser.includes('كم أوقية') || normUser.includes('كم اوقية') || normUser.includes('كم أوقيه') || normUser.includes('كم اوقيه')) &&
+     (normUser.includes('الكيلو') || normUser.includes('كيلو')) &&
+     !normUser.includes('سعر') && !normUser.includes('بكم') && !normUser.includes('أوفر') && !normUser.includes('اوفر'));
+
+  if (isKiloToOunceConversion) {
+    return {
+      reply: 'الكيلو يعادل تقريبًا 35.7 أوقية، على أساس أن الأوقية عندنا 28 جم.',
+      suggestions: [],
+      productCards: [],
+    };
+  }
+
+  // 0.06 Comparison between Kilo and Offer ("وش الأوفر آخذ بالكيلو أو بالعرض؟", "وش الأوفر الكيلو أو العرض؟")
+  // Strict rule: Actual calculation based on original kilo price vs actual offer price!
+  const isKiloVsOfferComparison =
+    (normUser.includes('أوفر') || normUser.includes('اوفر') || normUser.includes('ارخص') || normUser.includes('أرخص')) &&
+    (normUser.includes('كيلو') || normUser.includes('الكيلو')) &&
+    (normUser.includes('عرض') || normUser.includes('العرض'));
+
+  if (isKiloVsOfferComparison) {
+    let targetOffer = ENHANCED_OUD_OFFERS.find((o) =>
+      o.aliases.some((a) => normUser.includes(a.toLowerCase()))
+    );
+    if (!targetOffer && state.currentProductId) {
+      targetOffer = ENHANCED_OUD_OFFERS.find((o) => o.catalogItemId === state.currentProductId);
+    }
+    if (!targetOffer && state.currentProductName) {
+      const curNorm = state.currentProductName.toLowerCase();
+      targetOffer = ENHANCED_OUD_OFFERS.find((o) =>
+        o.aliases.some((a) => curNorm.includes(a.toLowerCase()) || a.toLowerCase().includes(curNorm))
+      );
+    }
+    if (!targetOffer) {
+      const historyStr = history.map((h) => h.content || '').join(' ').toLowerCase();
+      if (historyStr.includes('تايقر') || historyStr.includes('تايجر')) {
+        targetOffer = ENHANCED_OUD_OFFERS.find((o) => o.id === 'enh_offer_tiger_cambodian');
+      } else if (historyStr.includes('تميز') || historyStr.includes('موروكي')) {
+        targetOffer = ENHANCED_OUD_OFFERS.find((o) => o.id === 'enh_offer_moroki_tamayoz');
+      } else if (historyStr.includes('ملكي')) {
+        targetOffer = ENHANCED_OUD_OFFERS.find((o) => o.id === 'enh_offer_moroki_malaki');
+      }
+    }
+
+    const catItem = targetOffer?.catalogItemId
+      ? MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === targetOffer?.catalogItemId)
+      : (state.currentProductId ? MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === state.currentProductId) : null);
+
+    const reply = computeKiloVsOfferComparison(
+      targetOffer?.productName || state.currentProductName || 'عود تايقر كمبودي',
+      catItem,
+      targetOffer || ENHANCED_OUD_OFFERS.find((o) => o.id === 'enh_offer_tiger_cambodian')
+    );
+
+    return {
+      reply,
+      suggestions: [],
+      productCards: [],
+    };
+  }
+
+  // 0.07 Inquiry about price without offer ("بكم بدون العرض؟", "بكم السعر الأصلي؟", "كم كان قبل العرض؟")
+  const isOriginalPriceInquiry =
+    normUser.includes('بدون العرض') ||
+    normUser.includes('بدون عرض') ||
+    normUser.includes('السعر الأصلي') ||
+    normUser.includes('السعر الاصلي') ||
+    normUser.includes('قبل العرض') ||
+    normUser.includes('قبل عرض') ||
+    normUser.includes('كم كان قبل') ||
+    normUser.includes('كم كانت قبل') ||
+    normUser.includes('الأوقية العادية كم') ||
+    normUser.includes('كم سعر الأوقية العادية') ||
+    normUser.includes('كم سعر الاوقية العادية') ||
+    normUser.includes('كم الأوقية العادية قبل');
+
+  if (isOriginalPriceInquiry) {
+    let targetOffer = ENHANCED_OUD_OFFERS.find((o) =>
+      o.aliases.some((a) => normUser.includes(a.toLowerCase()))
+    );
+    if (!targetOffer && state.currentProductId) {
+      targetOffer = ENHANCED_OUD_OFFERS.find((o) => o.catalogItemId === state.currentProductId);
+    }
+    if (!targetOffer && state.currentProductName) {
+      const curNorm = state.currentProductName.toLowerCase();
+      targetOffer = ENHANCED_OUD_OFFERS.find((o) =>
+        o.aliases.some((a) => curNorm.includes(a.toLowerCase()) || a.toLowerCase().includes(curNorm))
+      );
+    }
+    if (!targetOffer) {
+      const historyStr = history.map((h) => h.content || '').join(' ').toLowerCase();
+      if (historyStr.includes('تايقر') || historyStr.includes('تايجر')) {
+        targetOffer = ENHANCED_OUD_OFFERS.find((o) => o.id === 'enh_offer_tiger_cambodian');
+      } else if (historyStr.includes('تميز') || historyStr.includes('موروكي')) {
+        targetOffer = ENHANCED_OUD_OFFERS.find((o) => o.id === 'enh_offer_moroki_tamayoz');
+      } else if (historyStr.includes('ملكي')) {
+        targetOffer = ENHANCED_OUD_OFFERS.find((o) => o.id === 'enh_offer_moroki_malaki');
+      }
+    }
+
+    if (targetOffer && targetOffer.regularPrice !== null) {
+      const ouqiyasInOffer = targetOffer.offer.ouqiyasCount || (targetOffer.offer.quantity.includes('4') ? 4 : (targetOffer.offer.quantity.includes('3') ? 3 : 2));
+      const totalOriginalPrice = targetOffer.regularPrice * ouqiyasInOffer;
+      const cleanName = targetOffer.productName.replace(/\s*\d+$/, '');
+
+      const reply = `الأوقية العادية من ${cleanName} بـ ${targetOffer.regularPrice} ريال، يعني ${ouqiyasInOffer} أوقيات بالسعر الأصلي = ${totalOriginalPrice} ريال.`;
+      return {
+        reply,
+        suggestions: [],
+        productCards: [],
+      };
+    } else if (targetOffer) {
+      const cleanName = targetOffer.productName.replace(/\s*\d+$/, '');
+      const reply = `سعر العرض لـ ${cleanName} هو 99 ريال لـ ${targetOffer.offer.quantity}، ولا يتوفر سعر للأوقية المنفردة في قاعدة البيانات الحالية لتقديم حساب بدون العرض.`;
+      return {
+        reply,
+        suggestions: [],
+        productCards: [],
+      };
+    }
+  }
+
+  // 0.1 Explicit Direct Link Request: e.g. "أرسل رابط موروكي الملكي" or follow-up "أرسل الرابط"
+  // Rule: Send the specific link requested ONLY! No extra products, no extra links!
+  const isExplicitLinkRequest =
+    /^(أرسل|ارسل|عطني|وين|ممكن|أبي|ابي|ابغى|أبغى)?\s*(الرابط|رابط|لينك)\s*(\?)?$/i.test(normUser) ||
+    normUser === 'أرسل الرابط' || normUser === 'ارسل الرابط' || normUser === 'عطني الرابط' || normUser === 'وين الرابط' ||
+    normUser === 'ممكن الرابط' || normUser === 'الرابط' || normUser === 'رابط المنتج' || normUser === 'أبي الرابط' ||
+    (normUser.includes('رابط') && (normUser.includes('ارسل') || normUser.includes('أرسل') || normUser.includes('عطني') || normUser.includes('وين')));
+
+  if (isExplicitLinkRequest) {
+    let targetItem: any = null;
+    let targetName = '';
+
+    if (normUser.includes('ملكي') || normUser.includes('الملكي')) {
+      targetItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_2');
+      targetName = 'موروكي الملكي';
+    } else if (normUser.includes('تميز') || normUser.includes('التميز')) {
+      targetItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_5');
+      targetName = 'موروكي التميز';
+    } else if (normUser.includes('تايقر ذهبي') || normUser.includes('تايجر ذهبي')) {
+      targetItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_1');
+      targetName = 'التايقر الذهبي';
+    } else if (normUser.includes('تايقر') || normUser.includes('تايجر')) {
+      targetItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_4' || c.id === 'enh_1');
+      targetName = 'عود تايقر كمبودي';
+    } else if (normUser.includes('فراش')) {
+      targetItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_13');
+      targetName = 'عود الفراشة';
+    } else if (normUser.includes('مغربي')) {
+      targetItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'saffron_moroccan' || c.id === 'zaf_4');
+      targetName = 'الزعفران المغربي';
+    } else if (normUser.includes('إيراني') || normUser.includes('ايراني') || normUser.includes('نقيل')) {
+      targetItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'saffron_iranian' || c.id === 'zaf_3');
+      targetName = 'الزعفران الإيراني سوبر نقيل';
+    } else if (normUser.includes('بكج الزعفران')) {
+      targetItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'saffron_package' || c.id === 'zaf_1');
+      targetName = 'بكج الزعفران الخاص';
+    } else if (state.currentProductId) {
+      targetItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === state.currentProductId);
+      targetName = state.currentProductName || targetItem?.name || 'المنتج';
+    } else if (state.currentProductName) {
+      targetName = state.currentProductName;
+      targetItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.name.includes(targetName) || targetName.includes(c.name));
+    }
+
+    if (targetItem || targetName) {
+      const nav = resolveStoreDestination(targetItem?.name || targetName);
+      const directUrl = nav.officialUrl || targetItem?.productUrl || 'https://medhaloud.com/العود-المحسن/c2090886574';
+      const cleanName = (targetName || targetItem?.name || 'المنتج').replace(/\s*\d+$/, '');
+      const reply = `تفضل رابط ${cleanName} المباشر على المتجر:\n${directUrl}`;
+      const card: ProductCardData = {
+        id: targetItem?.id || 'link_card',
+        name: targetItem?.name || cleanName,
+        category: targetItem?.category || 'العود المحسن',
+        variant: targetItem?.variants?.[0]?.displayedWeight || targetItem?.variants?.[0]?.variantName || 'أوقية',
+        price: targetItem?.displayedCardPrice || targetItem?.variants?.[0]?.price || 75,
+        priceDisplay: targetItem?.variants?.[0]?.priceDisplay || (targetItem?.displayedCardPrice ? `${targetItem.displayedCardPrice} ريال` : '75 ريال'),
+        description: targetItem?.notes || `رابط رسمي موثق لمنتج ${cleanName} في متجر مدهال الطيب.`,
+        inStock: true,
+        imageUrl: targetItem?.imageUrl || null,
+        productUrl: directUrl,
+        hasDirectPage: true,
+      };
+      return {
+        reply,
+        suggestions: [],
+        productCards: [card],
+      };
+    }
+  }
+
+  // 0.2 Specific Inquiry for Tiger Cambodian ("أبي تايقر كمبودي", "أبي تايقر", "عود تايقر كمبودي")
+  // Rule 1: Display original certified prices first, NO offer mentioned automatically!
+  const isTigerCambodianInquiry =
+    (normUser === 'أبي تايقر كمبودي' ||
+     normUser === 'ابي تايقر كمبودي' ||
+     normUser === 'أبي تايقر' ||
+     normUser === 'ابي تايقر' ||
+     normUser === 'أبي عود تايقر كمبودي' ||
+     normUser === 'ابي عود تايقر كمبودي' ||
+     normUser === 'أبي عود تايقر' ||
+     normUser === 'ابي عود تايقر' ||
+     normUser === 'عود تايقر كمبودي' ||
+     normUser === 'عود تايقر' ||
+     normUser === 'تايقر كمبودي' ||
+     normUser === 'تايقر' ||
+     ((normUser.includes('تايقر') || normUser.includes('تايجر')) && (normUser.includes('كمبودي') || normUser.includes('عود')) && (normUser.includes('أبي') || normUser.includes('ابي') || normUser.includes('ابغى')))) &&
+    !normUser.includes('عرض') &&
+    !normUser.includes('العرض') &&
+    !normUser.includes('رابط') &&
+    !normUser.includes('قارن') &&
+    !normUser.includes('فرق') &&
+    !normUser.includes('أوفر') &&
+    !normUser.includes('اوفر') &&
+    !normUser.includes('كم أوقية') &&
+    !normUser.includes('كم اوقية') &&
+    !normUser.includes('كم أوقيه') &&
+    !normUser.includes('كم اوقيه');
+
+  if (isTigerCambodianInquiry) {
+    const tigerItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_4') || MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_1');
+    const card: ProductCardData = {
+      id: 'enh_4',
+      name: 'عود تايقر كمبودي 30',
+      category: 'العود المحسن',
+      variant: 'أوقية (٢٨ جم)',
+      price: 30,
+      priceDisplay: '30 ريال',
+      description: 'عود تايقر كمبودي محسن فاخر، نكهة سويتية بخورية مميزة وثبات عالي، مناسب للبيت والمناسبات والاستخدام اليومي.',
+      inStock: true,
+      imageUrl: tigerItem?.imageUrl || null,
+      productUrl: tigerItem?.productUrl || 'https://medhaloud.com/العود-المحسن/c2090886574',
+      hasDirectPage: true,
+    };
+    return {
+      reply: `عود تايقر كمبودي محسن فاخر، نكهة سويتية بخورية مميزة وثبات عالي، متوفر بالأسعار والأوزان الرسمية الأصلية التالية:
+- الأوقية (28 جم): 30 ريال
+- ثمن كيلو (125 جم): 125 ريال
+- ربع كيلو (250 جم): 225 ريال
+- نصف كيلو (500 جم): 400 ريال
+- الكيلو (1000 جم): 800 ريال`,
+      suggestions: [],
+      productCards: [card],
+    };
+  }
+
+  // 0.21 Specific Inquiry for Moroki Al-Malaki ("أبي موروكي الملكي", "موروكي الملكي")
+  // Rule 1: Display original certified prices first, NO offer mentioned automatically!
+  const isMorokiMalakiInquiry =
+    (normUser === 'أبي موروكي الملكي' ||
+     normUser === 'ابي موروكي الملكي' ||
+     normUser === 'أبي مروكي ملكي' ||
+     normUser === 'ابي مروكي ملكي' ||
+     normUser === 'موروكي الملكي' ||
+     normUser === 'مروكي ملكي' ||
+     normUser === 'عود موروكي ملكي' ||
+     normUser === 'عود مروكي ملكي' ||
+     ((normUser.includes('موروكي الملكي') || normUser.includes('مروكي ملكي')) && (normUser.includes('أبي') || normUser.includes('ابي') || normUser.includes('ابغى')))) &&
+    !normUser.includes('عرض') &&
+    !normUser.includes('العرض') &&
+    !normUser.includes('رابط') &&
+    !normUser.includes('قارن') &&
+    !normUser.includes('فرق') &&
+    !normUser.includes('أوفر') &&
+    !normUser.includes('اوفر') &&
+    !normUser.includes('كم أوقية') &&
+    !normUser.includes('كم اوقية');
+
+  if (isMorokiMalakiInquiry) {
+    const malakiItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_2');
+    const card: ProductCardData = {
+      id: 'enh_2',
+      name: 'موروكي الملكي 75',
+      category: 'العود المحسن',
+      variant: 'أوقية (٢٨ جم)',
+      price: 75,
+      priceDisplay: '75 ريال',
+      description: 'عود موروكي محسن فاخر بنكهة رسمية مناسبة للمجالس والضيافة والاستخدام اليومي.',
+      inStock: true,
+      imageUrl: malakiItem?.imageUrl || null,
+      productUrl: malakiItem?.productUrl || 'https://medhaloud.com/العود-المحسن/c2090886574',
+      hasDirectPage: true,
+    };
+    return {
+      reply: `موروكي الملكي 75 من العود المحسن الفاخر، نكهة موروكي فخمة ورسمية مناسبة للمجالس والضيافة، ومتوفر بالأسعار والأوزان الرسمية التالية:
+- الأوقية (28 جم): 75 ريال
+- ثمن كيلو (125 جم): 225 ريال
+- ربع كيلو (250 جم): 425 ريال
+- نصف كيلو (500 جم): 850 ريال
+- الكيلو (1000 جم): 1700 ريال`,
+      suggestions: [],
+      productCards: [card],
+    };
+  }
+
+  // 0.15 Explicit purchase intent for current product ("أبي آخذ منه", "ابي اخذ منه", "اعتمد لي", "أبي أطلبه", "كيف أطلبه")
+  const isDirectTakeOrBuyIntent =
+    (normUser.includes('أبي آخذ') || normUser.includes('ابي اخذ') || normUser.includes('ابي اطلب') || normUser.includes('أبي أطلب') || normUser.includes('اعتمد لي') || normUser.includes('أعتمد لي')) &&
+    !normUser.includes('كم') && !normUser.includes('بكم') && !normUser.includes('سعر');
+  if (isDirectTakeOrBuyIntent && (state.currentProductId || state.currentProductName)) {
+    const item = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === state.currentProductId || (state.currentProductName && c.name.includes(state.currentProductName)));
+    if (item) {
+      const nav = resolveStoreDestination(item.name);
+      const directUrl = nav.officialUrl || item.productUrl || 'https://medhaloud.com/';
+      const cleanName = item.name.replace(/\s*\d+$/, '');
+      const card: ProductCardData = {
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        variant: item.variants[0]?.displayedWeight || item.variants[0]?.variantName || 'أوقية',
+        price: item.displayedCardPrice || item.variants[0]?.price || 75,
+        priceDisplay: item.variants[0]?.priceDisplay || (item.displayedCardPrice ? `${item.displayedCardPrice} ريال` : undefined),
+        description: item.notes,
+        inStock: true,
+        imageUrl: item.imageUrl,
+        productUrl: directUrl,
+        hasDirectPage: true,
+      };
+      return {
+        reply: `أبشر، اختيار موفق لـ ${cleanName}.\nتقدر تطلبه مباشرة عبر الرابط التالي أو من خلال بطاقة المنتج المعروضة:\n${directUrl}`,
+        suggestions: [],
+        productCards: [card],
+      };
+    }
+  }
+
+  // 0.16 Difference between Iranian and Moroccan saffron:
+  const isSaffronDifference =
+    (normUser.includes('فرق') || normUser.includes('الفرق')) &&
+    (normUser.includes('إيراني') || normUser.includes('ايراني')) &&
+    (normUser.includes('مغربي') || normUser.includes('المغربي'));
+  if (isSaffronDifference) {
+    return {
+      reply: `الفرق بين الزعفران الإيراني والزعفران المغربي في متجر مدهال الطيب:
+
+- الزعفران الإيراني (سوبر نقيل): خيوط حمراء نقية طبيعية خالية من أي صبغات، يتميز بنكهة زعفرانية كلاسيكية قوية ولون غني واضح في الاستخدام (سعره 45 ريال لـ 5 جرام، و90 ريال لـ 10 جرام).
+
+- الزعفران المغربي (طبيعي حر): خيوط فاخرة برائحة عطرية زكية ونكهة هادئة فواحة وطعم أصيل مميز (سعره 75 ريال لـ 5 جرام، و150 ريال لـ 10 جرام).`,
+      suggestions: [],
+      productCards: [],
+    };
+  }
 
   // Guard: NEVER trigger direct lookup if user asks for recommendation, comparison, difference, or complex advice
   const isComplexOrAdvice =
@@ -716,7 +1510,6 @@ function tryDirectLookup(
     normUser.includes('وش رايك') ||
     normUser.includes('طبيعي أو محسن') ||
     normUser.includes('طبيعي او محسن');
-
   if (isComplexOrAdvice) {
     return null;
   }
@@ -724,24 +1517,10 @@ function tryDirectLookup(
   // 1. Direct inquiry about Saffron:
   // "أبو 45 كم جرام؟" or "ابو 45 كم جرام؟"
   if ((normUser.includes('أبو 45') || normUser.includes('ابو 45')) && (normUser.includes('كم جرام') || normUser.includes('كم وزن') || normUser.includes('وزنه'))) {
-    const iranianItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'saffron_iranian');
-    const card: ProductCardData = {
-      id: 'saffron_iranian_5g',
-      name: 'زعفران إيراني سوبر نقيل',
-      category: 'الزعفران',
-      variant: '5 جرام',
-      price: 45,
-      priceDisplay: '45 ريال',
-      description: 'زعفران إيراني سوبر نقيل أصلي، نكهة ولون فاخر.',
-      inStock: true,
-      imageUrl: iranianItem?.imageUrl || null,
-      productUrl: iranianItem?.productUrl,
-      hasDirectPage: true,
-    };
     return {
       reply: '5 جرام.',
       suggestions: [],
-      productCards: [card],
+      productCards: [],
     };
   }
 
@@ -770,24 +1549,10 @@ function tryDirectLookup(
 
   // "بكج الزعفران الخاص كم وزنه؟" or "كم وزن بكج الزعفران"
   if (normUser.includes('بكج الزعفران') && (normUser.includes('كم وزن') || normUser.includes('كم وزنه') || normUser.includes('وزنه'))) {
-    const pkgItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'saffron_package');
-    const card: ProductCardData = {
-      id: 'saffron_package_6g',
-      name: 'بكج الزعفران الخاص',
-      category: 'الزعفران',
-      variant: '6 جرام',
-      price: 65,
-      priceDisplay: '65 ريال',
-      description: 'بكج الزعفران الخاص وزن 6 جرام متكامل وأنيق.',
-      inStock: true,
-      imageUrl: pkgItem?.imageUrl || null,
-      productUrl: pkgItem?.productUrl,
-      hasDirectPage: true,
-    };
     return {
       reply: 'وزنه 6 جرام وسعره 65 ريال.',
       suggestions: [],
-      productCards: [card],
+      productCards: [],
     };
   }
 
@@ -1101,6 +1866,9 @@ function tryDirectLookup(
     o.aliases.some((a) => normUser.includes(a.toLowerCase()))
   );
 
+  if (!matchedOffer && (normUser.includes('تايقر') || normUser.includes('تايجر'))) {
+    matchedOffer = ENHANCED_OUD_OFFERS.find((o) => o.id === 'enh_offer_tiger_cambodian');
+  }
   if (!matchedOffer && state.currentProductId) {
     matchedOffer = ENHANCED_OUD_OFFERS.find((o) => o.catalogItemId === state.currentProductId);
   }
@@ -1110,36 +1878,108 @@ function tryDirectLookup(
       o.aliases.some((a) => curNorm.includes(a.toLowerCase()) || a.toLowerCase().includes(curNorm))
     );
   }
+  if (!matchedOffer) {
+    const historyStr = history.map((h) => h.content || '').join(' ').toLowerCase();
+    if (historyStr.includes('تايقر') || historyStr.includes('تايجر')) {
+      matchedOffer = ENHANCED_OUD_OFFERS.find((o) => o.id === 'enh_offer_tiger_cambodian');
+    } else if (historyStr.includes('تميز') || historyStr.includes('موروكي')) {
+      matchedOffer = ENHANCED_OUD_OFFERS.find((o) => o.id === 'enh_offer_moroki_tamayoz');
+    } else if (historyStr.includes('ملكي')) {
+      matchedOffer = ENHANCED_OUD_OFFERS.find((o) => o.id === 'enh_offer_moroki_malaki');
+    }
+  }
 
   if (matchedOffer) {
+    // 1. السؤال عن كمية أو وزن أو محتوى العرض: ("كم أوقية فيه؟" / "كم اوقية فيه؟" / "كم وزن العرض؟" / "وش يجي في العرض؟")
+    // لا تعرض بطاقة منتج لأن السؤال معلوماتي عن الكمية
+    const isOfferQuantityInquiry =
+      normUser.includes('كم أوقية فيه') ||
+      normUser.includes('كم اوقية فيه') ||
+      normUser.includes('كم اوقيه فيه') ||
+      normUser.includes('كم أوقيه فيه') ||
+      normUser.includes('أوقية فيه') ||
+      normUser.includes('اوقية فيه') ||
+      normUser.includes('أوقيه فيه') ||
+      normUser.includes('اوقيه فيه') ||
+      normUser.includes('كم أوقية في العرض') ||
+      normUser.includes('كم اوقية في العرض') ||
+      normUser.includes('كم أوقية بالعرض') ||
+      normUser.includes('كم اوقية بالعرض') ||
+      normUser.includes('كم وزن العرض') ||
+      normUser.includes('كم وزنه في العرض') ||
+      normUser.includes('كم وزن عرض') ||
+      normUser.includes('وش يجي في العرض') ||
+      normUser.includes('وش يجي فيه') ||
+      normUser.includes('وش محتويات العرض') ||
+      normUser.includes('محتويات العرض') ||
+      normUser.includes('كم كمية العرض');
+
+    if (isOfferQuantityInquiry) {
+      const ouqiyasCount = matchedOffer.offer.ouqiyasCount || (matchedOffer.offer.quantity.includes('4') ? 4 : (matchedOffer.offer.quantity.includes('3') ? 3 : 2));
+      const grams = ouqiyasCount * 28;
+      const displayQty = matchedOffer.offer.quantity === '2 أوقية' ? '2 أوقية (أوقيتين)' : matchedOffer.offer.quantity;
+      const reply = `عرض ${matchedOffer.productName} يحتوي على ${displayQty} (تزن ${grams} جم) بسعر 99 ريال للعرض كاملاً.`;
+      return {
+        reply,
+        suggestions: [],
+        productCards: [],
+      };
+    }
+
+    // 2. استفسار سعر الأوقية العادية / الأصلية: ("كم سعر الأوقية العادية؟" / "كم سعر الأوقية؟" / "كم الأوقية العادية؟")
+    // اعرض السعر الأصلي للأوقية فقط، ولا تعرض سعر العرض إلا إذا طلب العميل ذلك
+    const isRegularOunceInquiry =
+      (normUser.includes('أوقية') || normUser.includes('اوقية') || normUser.includes('أوقيه') || normUser.includes('اوقيه')) &&
+      (normUser.includes('عادية') || normUser.includes('العادية') || normUser.includes('سعر الأوقية') || normUser.includes('سعر الاوقية') || normUser.includes('كم الأوقية') || normUser.includes('كم الاوقية') || normUser === 'كم الأوقية؟' || normUser === 'كم الاوقية؟' || normUser === 'كم الأوقية' || normUser === 'كم الاوقية' || normUser.includes('بكم الأوقية') || normUser.includes('بكم الاوقية') || normUser.includes('الأوقية بكم')) &&
+      !normUser.includes('عرض') &&
+      !normUser.includes('العرض') &&
+      !normUser.includes('كيلو') &&
+      !isOfferQuantityInquiry;
+
+    if (isRegularOunceInquiry) {
+      if (matchedOffer.regularPrice !== null) {
+        const catItem = matchedOffer.catalogItemId
+          ? MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === matchedOffer.catalogItemId)
+          : null;
+        const ounceVariant = catItem?.variants?.find(
+          (v) => v.variantName === 'الأوقية' || v.variantName === 'أوقية' || (v.weightGrams && v.weightGrams === 28)
+        );
+
+        const reply = `سعر الأوقية العادية (28 جم) لـ${matchedOffer.productName} هو ${matchedOffer.regularPrice} ريال.`;
+        const card: ProductCardData = {
+          id: `${matchedOffer.catalogItemId || matchedOffer.id}_ounce`,
+          name: catItem ? `${catItem.name} - ${ounceVariant?.variantName || 'الأوقية'}` : `${matchedOffer.productName} - الأوقية`,
+          category: 'العود المحسن',
+          variant: ounceVariant?.displayedWeight || '٢٨ جم',
+          price: matchedOffer.regularPrice,
+          priceDisplay: `${matchedOffer.regularPrice} ريال`,
+          description: catItem?.notes || `أوقية مفردة (28 جم) بالسعر الأصلي المعتمد في الكتالوج.`,
+          inStock: true,
+          imageUrl: catItem?.imageUrl || null,
+          productUrl: catItem?.productUrl,
+          hasDirectPage: true,
+        };
+
+        return {
+          reply,
+          suggestions: [],
+          productCards: [card],
+        };
+      }
+    }
+
+    // 3. استفسار العرض نفسه: ("وش عرض تايقر؟" / "وش عرض التايقر؟" / "عرض تايقر")
     const isOfferInquiry =
       normUser.includes('عرض') ||
-      normUser.includes('العرض') ||
-      normUser.includes('يجي في') ||
-      normUser.includes('وش يجي') ||
-      normUser.includes('محتويات') ||
-      normUser.includes('كم أوقية في') ||
-      normUser.includes('كم اوقية في') ||
-      normUser.includes('كم اوقيه في') ||
-      normUser.includes('كم أوقيه في');
+      normUser.includes('العرض');
 
-    const isOunceInquiry =
-      (normUser.includes('أوقية') || normUser.includes('اوقية') || normUser.includes('أوقيه') || normUser.includes('اوقيه')) &&
-      !isOfferInquiry;
-
-    // 1. استفسار العرض: (كم عرض التايقر الكمبودي؟ / وش عرض التايقر الكمبودي؟ / وش يجي في عرض مروكي تميز؟ / كم العرض؟)
     if (isOfferInquiry) {
       const catItem = matchedOffer.catalogItemId
         ? MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === matchedOffer.catalogItemId)
         : null;
 
-      let reply = '';
       const displayQty = matchedOffer.offer.quantity === '2 أوقية' ? '2 أوقية (أوقيتين)' : matchedOffer.offer.quantity;
-      if (normUser.includes('يجي') || normUser.includes('محتويات') || normUser.includes('كم أوقية') || normUser.includes('كم اوقية')) {
-        reply = `عرض ${matchedOffer.productName} يحتوي على ${displayQty} بسعر 99 ريال للعرض كاملاً.`;
-      } else {
-        reply = `عرض ${matchedOffer.productName} بـ 99 ريال للعرض كاملاً، ويحتوي على ${displayQty}.`;
-      }
+      const reply = `عرض ${matchedOffer.productName} بـ 99 ريال للعرض كاملاً، ويحتوي على ${displayQty}.`;
 
       const card: ProductCardData = {
         id: `${matchedOffer.id}_card`,
@@ -1157,59 +1997,18 @@ function tryDirectLookup(
 
       return {
         reply,
-        suggestions: matchedOffer.regularPrice ? [`كم سعر الأوقية لـ${matchedOffer.productName}؟`] : [],
+        suggestions: [],
         productCards: [card],
       };
     }
-
-    // 2. استفسار سعر الأوقية الأصلي: (كم سعر الأوقية للتايقر الكمبودي؟ / كم أوقية التايقر الكمبودي؟ / كم أوقية مروكي تميز؟ / كم الأوقية؟)
-    if (isOunceInquiry) {
-      if (matchedOffer.regularPrice !== null) {
-        const catItem = matchedOffer.catalogItemId
-          ? MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === matchedOffer.catalogItemId)
-          : null;
-        const ounceVariant = catItem?.variants.find(
-          (v) => v.variantName === 'الأوقية' || v.variantName === 'أوقية' || (v.weightGrams && v.weightGrams === 28)
-        );
-
-        const reply = `سعر أوقية ${matchedOffer.productName} هو ${matchedOffer.regularPrice} ريال.`;
-        const card: ProductCardData = {
-          id: `${matchedOffer.catalogItemId || matchedOffer.id}_ounce`,
-          name: catItem ? `${catItem.name} - ${ounceVariant?.variantName || 'الأوقية'}` : `${matchedOffer.productName} - الأوقية`,
-          category: 'العود المحسن',
-          variant: ounceVariant?.displayedWeight || '٢٨ جم',
-          price: matchedOffer.regularPrice,
-          priceDisplay: `${matchedOffer.regularPrice} ريال`,
-          description: catItem?.notes || `أوقية مفردة (28 جم) بالسعر الأصلي المعتمد في الكتالوج.`,
-          inStock: true,
-          imageUrl: catItem?.imageUrl || null,
-          productUrl: catItem?.productUrl,
-          hasDirectPage: true,
-        };
-
-        return {
-          reply,
-          suggestions: [`وش عرض ${matchedOffer.productName}؟`],
-          productCards: [card],
-        };
-      } else {
-        // لا يوجد سعر أصلي مسجل للأوقية المفردة في الكتالوج (مثل كلمنتان أو مروكي شيوخ)
-        const reply = `المنتج متوفر ضمن عروض العود المحسن بسعر 99 ريال لـ ${matchedOffer.offer.quantity} للعرض كاملاً.`;
-        return {
-          reply,
-          suggestions: [],
-          productCards: [],
-        };
-      }
-    }
   }
 
-  // "كم سعر كيلو التايقر الكمبودي؟" or "سعر كيلو التايقر"
+  // "كم سعر كيلو التايقر الكمبودي؟" or "سعر كيلو التايقر" or "بكم الكيلو" (with tiger in context)
   if ((normUser.includes('تايقر') || normUser.includes('تايجر')) && normUser.includes('كيلو') && (normUser.includes('كم') || normUser.includes('سعر') || normUser.includes('بكم'))) {
-    const tigerKilo = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_1_kilo') || MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_1');
+    const tigerKilo = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_4') || MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === 'enh_1');
     const card: ProductCardData = {
-      id: 'enh_1_kilo',
-      name: 'التايقر الذهبي 35 - الكيلو',
+      id: 'enh_4_kilo',
+      name: 'عود تايقر كمبودي 30 - الكيلو',
       category: 'العود المحسن',
       variant: '١٠٠٠ جم',
       price: 800,
@@ -1227,19 +2026,20 @@ function tryDirectLookup(
     };
   }
 
-  // 2. Direct lookup for weights/variants when product is already known from ConversationState (e.g. enh_5 موروكي التميز):
+  // 2. Direct lookup for weights/variants when product is already known from ConversationState (e.g. enh_5 موروكي التميز, enh_4 تايقر كمبودي):
   if (state.currentProductId) {
     const catalogItem = MIDHAL_OFFICIAL_CATALOG.find((c) => c.id === state.currentProductId);
     if (catalogItem && catalogItem.variants && catalogItem.variants.length > 0) {
       // Check if message is a clean, direct inquiry about weight/size:
-      // Examples: "كم الكيلو؟", "طيب الكيلو؟", "سعر الكيلو", "كم النص؟", "طيب النص؟", "كم الربع؟", "طيب الربع؟", "كم الثمن؟", "طيب الثمن؟", "كم الأوقية؟", "طيب الأوقية؟"
+      // Examples: "بكم الكيلو؟", "كم الكيلو؟", "طيب الكيلو؟", "سعر الكيلو", "كم النص؟", "طيب النص؟", "كم الربع؟", "طيب الربع؟", "كم الثمن؟", "طيب الثمن؟", "كم الأوقية؟", "طيب الأوقية؟"
       const isWeightQuery =
         /^(كم|طيب|سعر|بكم)\s*(سعر\s*)?(الكيلو|كيلو|النص|النصف|الربع|الثمن|الأوقية|الاوقية)\s*(\?)?$/i.test(normUser) ||
-        normUser === 'كم الكيلو؟' || normUser === 'كم الكيلو' || normUser === 'طيب الكيلو؟' || normUser === 'طيب الكيلو' || normUser === 'سعر الكيلو' ||
-        normUser === 'كم النص؟' || normUser === 'كم النص' || normUser === 'طيب النص؟' || normUser === 'طيب النص' || normUser === 'سعر النص' ||
-        normUser === 'كم الربع؟' || normUser === 'كم الربع' || normUser === 'طيب الربع؟' || normUser === 'طيب الربع' || normUser === 'سعر الربع' ||
-        normUser === 'كم الثمن؟' || normUser === 'كم الثمن' || normUser === 'طيب الثمن؟' || normUser === 'طيب الثمن' || normUser === 'سعر الثمن' ||
-        normUser === 'كم الأوقية؟' || normUser === 'كم الأوقية' || normUser === 'طيب الأوقية؟' || normUser === 'طيب الأوقية' || normUser === 'سعر الأوقية';
+        normUser === 'كم الكيلو؟' || normUser === 'كم الكيلو' || normUser === 'طيب الكيلو؟' || normUser === 'طيب الكيلو' || normUser === 'سعر الكيلو' || normUser === 'بكم الكيلو؟' || normUser === 'بكم الكيلو' ||
+        normUser === 'كم النص؟' || normUser === 'كم النص' || normUser === 'طيب النص؟' || normUser === 'طيب النص' || normUser === 'سعر النص' || normUser === 'بكم النص؟' ||
+        normUser === 'كم الربع؟' || normUser === 'كم الربع' || normUser === 'طيب الربع؟' || normUser === 'طيب الربع' || normUser === 'سعر الربع' || normUser === 'بكم الربع؟' ||
+        normUser === 'كم الثمن؟' || normUser === 'كم الثمن' || normUser === 'طيب الثمن؟' || normUser === 'طيب الثمن' || normUser === 'سعر الثمن' || normUser === 'بكم الثمن؟' ||
+        normUser === 'كم الأوقية؟' || normUser === 'كم الأوقية' || normUser === 'طيب الأوقية؟' || normUser === 'طيب الأوقية' || normUser === 'سعر الأوقية' || normUser === 'بكم الأوقية؟' ||
+        normUser === 'كم سعر الكيلو؟' || normUser === 'كم سعر الكيلو' || normUser === 'بكم سعر الكيلو؟';
 
       if (isWeightQuery) {
         let targetVariant: any = null;
@@ -1353,6 +2153,82 @@ app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', store: 'مدهال الطيب' });
 });
 
+const RATINGS_FILE_PATH = path.join(process.cwd(), 'data', 'message_ratings.json');
+
+app.post('/api/chat/rate', (req: Request, res: Response) => {
+  try {
+    const {
+      conversationId,
+      messageId,
+      userMessage,
+      assistantReply,
+      rating,
+      modelUsed,
+      productNames,
+      context,
+    } = req.body;
+
+    if (!messageId || !conversationId || !rating) {
+      res.status(400).json({ error: 'الحقول المطلوبة: messageId, conversationId, rating' });
+      return;
+    }
+
+    const ratingData = {
+      conversationId,
+      messageId,
+      userMessage: userMessage || '',
+      assistantReply: assistantReply || '',
+      rating, // 'positive' or 'negative'
+      modelUsed: modelUsed || 'Unknown',
+      productNames: productNames || [],
+      context: context || {},
+      timestamp: new Date().toISOString(),
+    };
+
+    // Save logic
+    const dir = path.dirname(RATINGS_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    let ratingsList: any[] = [];
+    if (fs.existsSync(RATINGS_FILE_PATH)) {
+      const fileContent = fs.readFileSync(RATINGS_FILE_PATH, 'utf8');
+      if (fileContent.trim()) {
+        try {
+          ratingsList = JSON.parse(fileContent);
+        } catch {
+          ratingsList = [];
+        }
+      }
+    }
+
+    // Check if there is an existing rating for this message inside the conversation to prevent duplicates
+    const existingIndex = ratingsList.findIndex(
+      (r) => r.messageId === messageId && r.conversationId === conversationId
+    );
+
+    if (existingIndex !== -1) {
+      ratingsList[existingIndex] = {
+        ...ratingsList[existingIndex],
+        ...ratingData,
+        updatedAt: new Date().toISOString(),
+      };
+    } else {
+      ratingsList.push({
+        ...ratingData,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    fs.writeFileSync(RATINGS_FILE_PATH, JSON.stringify(ratingsList, null, 2), 'utf8');
+    res.json({ success: true, message: 'تم حفظ التقييم بنجاح' });
+  } catch (error: any) {
+    console.error('Error saving rating:', error);
+    res.status(500).json({ error: 'حدث خطأ أثناء حفظ التقييم', details: error?.message });
+  }
+});
+
 // Official Catalog Endpoints
 app.get('/api/catalog', (_req: Request, res: Response) => {
   res.json({
@@ -1412,13 +2288,14 @@ async function generateGeminiReply(
   const ai = getGeminiClient();
 
   // Model Fallback Hierarchy (Strictly using single GEMINI_API_KEY):
-  // 1. gemini-3.1-flash-lite: Fast, lightweight, lowest cost & separate quota for basic requests
-  // 2. gemini-3.8-flash: Standard tier with high quality and reasoning
-  // 3. gemini-3.1-pro-preview: Deep reasoning and complex query fallback
-  // 4. gemini-flash-latest: Stable fallback alias
+  // 1. gemini-2.5-flash / gemini-2.5-pro: Resilient high-availability general release models (tried first to bypass 503 errors during high-demand spikes)
+  // 2. gemini-3.1-flash-lite: Fast, lightweight
+  // 3. gemini-3.8-flash: Standard tier
+  // 4. gemini-3.1-pro-preview: Deep reasoning fallback
+  // 5. gemini-flash-latest: Stable fallback alias
   const models = isComplexRequest
-    ? ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite', 'gemini-flash-latest']
-    : ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-flash-latest'];
+    ? ['gemini-2.5-pro', 'gemini-3.1-pro-preview', 'gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest']
+    : ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-flash-latest'];
   let lastError: any = null;
 
   for (let i = 0; i < models.length; i++) {
@@ -1456,7 +2333,7 @@ async function generateGeminiReply(
     } catch (err: any) {
       lastError = err;
       const errMsg = err?.message || String(err);
-      console.warn(`[Model Fallback] Model ${model} encountered error: ${errMsg.slice(0, 120)}`);
+      console.log(`[Model Selection] Model ${model} is currently busy or under high load. Trying next available model in fallback chain...`);
 
       const nextModel = models[i + 1];
       if (nextModel) {
@@ -1465,7 +2342,7 @@ async function generateGeminiReply(
       if (errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('Quota')) {
         analytics.recordError('429', `${model}: quota exceeded`);
       } else {
-        analytics.recordError('other', `${model}: ${errMsg.slice(0, 80)}`);
+        analytics.recordError('other', `${model}: busy`);
       }
       // Continue loop to try next model in the fallback hierarchy with full context
     }
@@ -1481,6 +2358,31 @@ function processProductCardsForQuery(
   history: Array<{ role: string; content: string; productCards?: ProductCardData[] }> = []
 ): ProductCardData[] {
   const normUser = userMessage.toLowerCase().trim();
+
+  // Weight conversion, Kilo vs Offer comparison, and offer quantity questions: return ZERO product cards!
+  const isWeightConversion =
+    (normUser.includes('كم أوقية') || normUser.includes('كم اوقية') || normUser.includes('كم أوقيه') || normUser.includes('كم اوقيه')) &&
+    (normUser.includes('كيلو') || normUser.includes('الكيلو'));
+  const isKiloVsOffer =
+    (normUser.includes('أوفر') || normUser.includes('اوفر')) &&
+    (normUser.includes('كيلو') || normUser.includes('الكيلو'));
+  const isOfferQuantityOnly =
+    normUser.includes('كم أوقية فيه') || normUser.includes('كم اوقية فيه') || normUser.includes('كم اوقيه فيه') || normUser.includes('كم أوقيه فيه') ||
+    normUser.includes('كم وزن العرض') || normUser.includes('كم وزنه في العرض') || normUser.includes('وش يجي في العرض') || normUser.includes('محتويات العرض');
+  const isWithoutOffer =
+    normUser.includes('بدون العرض') ||
+    normUser.includes('بدون عرض') ||
+    normUser.includes('السعر الأصلي') ||
+    normUser.includes('السعر الاصلي') ||
+    normUser.includes('قبل العرض') ||
+    normUser.includes('قبل عرض') ||
+    normUser.includes('كم كان قبل') ||
+    normUser.includes('كم كانت قبل');
+
+  // Pure acknowledgment, conversation ending, difference question, weight conversion, comparison, or price without offer: return ZERO product cards!
+  if (isPureAcknowledgmentOrEnding(userMessage) || normUser.includes('فرق') || normUser.includes('الفرق') || isWeightConversion || isKiloVsOffer || isOfferQuantityOnly || isWithoutOffer) {
+    return [];
+  }
 
   // Extract recent context for follow-up resolutions
   const recentHistoryText = history.map((h) => h.content || '').join(' ').toLowerCase();
@@ -1912,6 +2814,29 @@ function processProductCardsForQuery(
 
   // If follow-up and rawCards is empty, retain last assistant cards only if context hasn't changed
   if (rawCards.length === 0 && isFollowUp && lastAssistantCards.length > 0) {
+    const isWithoutOffer =
+      normUser.includes('بدون العرض') ||
+      normUser.includes('بدون عرض') ||
+      normUser.includes('السعر الأصلي') ||
+      normUser.includes('السعر الاصلي') ||
+      normUser.includes('قبل العرض') ||
+      normUser.includes('قبل عرض') ||
+      normUser.includes('كم كان قبل') ||
+      normUser.includes('كم كانت قبل');
+
+    // If user message is an acknowledgment, ending, difference question, weight conversion, comparison, offer quantity, or price without offer, NEVER retain previous cards!
+    if (
+      isPureAcknowledgmentOrEnding(userMessage) ||
+      normUser.includes('فرق') ||
+      normUser.includes('الفرق') ||
+      isWeightConversion ||
+      isKiloVsOffer ||
+      isOfferQuantityOnly ||
+      isWithoutOffer
+    ) {
+      return [];
+    }
+
     // If user changed topic to saffron, perfume, air/linen freshener, bags, or oil, do not retain unrelated cards
     const changedTopic =
       refersToSaffron ||
@@ -1938,6 +2863,39 @@ function determineContextualSuggestions(
 ): string[] {
   const normUser = userMessage.toLowerCase().trim();
   const normReply = replyText.toLowerCase().trim();
+
+  // Guards for weight conversion, comparison, and quantity inquiries
+  const isWeightConversion =
+    (normUser.includes('كم أوقية') || normUser.includes('كم اوقية') || normUser.includes('كم أوقيه') || normUser.includes('كم اوقيه')) &&
+    (normUser.includes('كيلو') || normUser.includes('الكيلو'));
+  const isKiloVsOffer =
+    (normUser.includes('أوفر') || normUser.includes('اوفر')) &&
+    (normUser.includes('كيلو') || normUser.includes('الكيلو'));
+  const isOfferQuantityOnly =
+    normUser.includes('كم أوقية فيه') || normUser.includes('كم اوقية فيه') || normUser.includes('كم اوقيه فيه') || normUser.includes('كم أوقيه فيه') ||
+    normUser.includes('كم وزن العرض') || normUser.includes('كم وزنه في العرض') || normUser.includes('وش يجي في العرض') || normUser.includes('محتويات العرض');
+  const isWithoutOffer =
+    normUser.includes('بدون العرض') ||
+    normUser.includes('بدون عرض') ||
+    normUser.includes('السعر الأصلي') ||
+    normUser.includes('السعر الاصلي') ||
+    normUser.includes('قبل العرض') ||
+    normUser.includes('قبل عرض') ||
+    normUser.includes('كم كان قبل') ||
+    normUser.includes('كم كانت قبل');
+
+  // 0. If pure acknowledgment, conversation ending, difference inquiry, weight conversion, comparison, offer quantity, or price without offer: return ZERO suggestions
+  if (
+    isPureAcknowledgmentOrEnding(normUser) ||
+    normUser.includes('فرق') ||
+    normUser.includes('الفرق') ||
+    isWeightConversion ||
+    isKiloVsOffer ||
+    isOfferQuantityOnly ||
+    isWithoutOffer
+  ) {
+    return [];
+  }
 
   // 1. Direct questions about price, weight, size, location, delivery, or a single specific item:
   // In all direct questions, show ZERO suggestions (do not clutter the interface or fill space).
@@ -2072,11 +3030,68 @@ function parseReplyAndSuggestions(
   productCards: ProductCardData[];
 } {
   if (!text) return { reply: '', suggestions: [], productCards: [] };
+
+  // 1. If user message was a pure acknowledgment, return clean polite ending with zero cards and zero suggestions
+  if (isPureAcknowledgmentOrEnding(userMessage)) {
+    const norm = userMessage.trim().toLowerCase();
+    const isGratitude =
+      norm.includes('شكر') ||
+      norm.includes('يعطيك') ||
+      norm.includes('تسلم') ||
+      norm.includes('قصرت') ||
+      norm.includes('خير') ||
+      norm.includes('يسعدك');
+    return {
+      reply: isGratitude ? 'العفو، حياك الله وبالخدمة دائماً.' : 'تمام، حياك الله.',
+      suggestions: [],
+      productCards: [],
+    };
+  }
+
   // Remove any thought or reasoning tags if generated
   let cleaned = text.replace(/<thought>[\s\S]*?<\/thought>/gi, '');
   cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
   // Remove explicit thinking prefixes if any
   cleaned = cleaned.replace(/^(التفكير الداخلي|تحليل الطلب|خطوات الاستدلال):.*$/gmi, '');
+
+  const normUser = userMessage.toLowerCase().trim();
+  const userAskedToBuy =
+    normUser.includes('أبي أطلب') ||
+    normUser.includes('ابي اطلب') ||
+    normUser.includes('أبي اشتري') ||
+    normUser.includes('ابي اشتري') ||
+    normUser.includes('اعتمد لي') ||
+    normUser.includes('أعتمد لي') ||
+    normUser.includes('احجز لي') ||
+    normUser.includes('أبي آخذ منه') ||
+    normUser.includes('ابي اخذ منه') ||
+    normUser.includes('كيف أطلب') ||
+    normUser.includes('طريقة الطلب') ||
+    normUser.includes('ابغى اطلب') ||
+    normUser.includes('أبغى أطلب');
+
+  const userAskedForLinks =
+    normUser.includes('رابط') ||
+    normUser.includes('الرابط') ||
+    normUser.includes('لينك') ||
+    normUser.includes('اللينك') ||
+    normUser.includes('صفحة المنتج') ||
+    normUser.includes('رابطه') ||
+    normUser.includes('رابطها');
+
+  const userAskedToOpen =
+    normUser.includes('أبي أشوف') ||
+    normUser.includes('ابي اشوف') ||
+    normUser.includes('ورني') ||
+    normUser.includes('افتح لي') ||
+    normUser.includes('أشوفه') ||
+    normUser.includes('اشوفه');
+
+  // Prune unprompted sales pressure phrases (e.g. "هل أعتمد لك الطلب؟", "هل تود إضافة أحد هذه المنتجات؟")
+  cleaned = pruneUnsolicitedSalesEndings(cleaned, userAskedToBuy);
+
+  // Prune unprompted links (Rule: no unrequested links in reply text)
+  cleaned = pruneUnsolicitedLinks(cleaned, userAskedForLinks, userAskedToBuy, userAskedToOpen);
 
   let productCards: ProductCardData[] = [];
   const cardsMatch = cleaned.match(/CARDS:\s*(\[[^\]]*\])/i);
@@ -2175,8 +3190,36 @@ function parseReplyAndSuggestions(
     return card;
   });
 
-  // Fallback: If no cards were generated by model, scan for mentioned catalog items
-  if (productCards.length === 0) {
+  // Fallback: If no cards were generated by model, scan for mentioned catalog items ONLY if query is not an acknowledgment, difference, weight conversion, or comparison inquiry
+  const isWeightConversion =
+    (normUser.includes('كم أوقية') || normUser.includes('كم اوقية') || normUser.includes('كم أوقيه') || normUser.includes('كم اوقيه')) &&
+    (normUser.includes('كيلو') || normUser.includes('الكيلو'));
+  const isKiloVsOffer =
+    (normUser.includes('أوفر') || normUser.includes('اوفر')) &&
+    (normUser.includes('كيلو') || normUser.includes('الكيلو'));
+  const isOfferQuantityOnly =
+    normUser.includes('كم أوقية فيه') || normUser.includes('كم اوقية فيه') || normUser.includes('كم اوقيه فيه') || normUser.includes('كم أوقيه فيه') ||
+    normUser.includes('كم وزن العرض') || normUser.includes('كم وزنه في العرض') || normUser.includes('وش يجي في العرض') || normUser.includes('محتويات العرض');
+  const isWithoutOffer =
+    normUser.includes('بدون العرض') ||
+    normUser.includes('بدون عرض') ||
+    normUser.includes('السعر الأصلي') ||
+    normUser.includes('السعر الاصلي') ||
+    normUser.includes('قبل العرض') ||
+    normUser.includes('قبل عرض') ||
+    normUser.includes('كم كان قبل') ||
+    normUser.includes('كم كانت قبل');
+
+  const isComparisonOrExploration =
+    normUser.includes('فرق') ||
+    normUser.includes('الفرق') ||
+    isPureAcknowledgmentOrEnding(normUser) ||
+    isWeightConversion ||
+    isKiloVsOffer ||
+    isOfferQuantityOnly ||
+    isWithoutOffer;
+
+  if (!isComparisonOrExploration && productCards.length === 0) {
     const lowerText = cleaned.toLowerCase();
     const candidates: ProductCardData[] = [];
     const isDirectSearch = (lowerText.includes('عندكم عطور') || lowerText.includes('وش العطور') || lowerText.includes('قائمة العطور') || lowerText.includes('انواع العطور') || lowerText.includes('أنواع العطور'));
@@ -2570,6 +3613,25 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Gemini API Error:', error);
+    const reqMessage = req.body?.message;
+    // If the message is a pure acknowledgment or polite closure, respond cleanly without failing
+    if (typeof reqMessage === 'string' && isPureAcknowledgmentOrEnding(reqMessage)) {
+      res.json({
+        reply: 'تمام، حياك الله.',
+        suggestions: [],
+        productCards: [],
+        analysis: {
+          detectedIntent: 'إنهاء طبيعي للمحادثة',
+          targetUsage: 'غير محدد',
+          productType: 'غير محدد',
+          budgetMentioned: null,
+          currentSubject: null,
+          confidenceNote: 'إنهاء طبيعي للمحادثة دون روابط أو افتراض شراء.',
+        },
+      });
+      return;
+    }
+
     res.status(500).json({
       error: 'حدث خطأ أثناء معالجة الطلب',
       details: error?.message || 'خطأ غير معروف',
@@ -2619,6 +3681,43 @@ app.post('/api/analytics/track', (req: Request, res: Response) => {
   }
 });
 
+// Record user feedback (👍/👎 thumbs up/down rating)
+app.post('/api/feedback', (req: Request, res: Response) => {
+  try {
+    const {
+      conversationId,
+      messageId,
+      userQuery,
+      assistantReply,
+      rating,
+      modelUsed,
+      productCards,
+      telemetry,
+    } = req.body || {};
+
+    if (!messageId || !rating || (rating !== 'positive' && rating !== 'negative' && rating !== 'none')) {
+      res.status(400).json({ error: 'حقول معرف الرسالة والتقييم مطلوبة وصحيحة' });
+      return;
+    }
+
+    analytics.recordFeedback({
+      conversationId: conversationId || 'conv_unknown',
+      messageId,
+      userQuery: userQuery || '',
+      assistantReply: assistantReply || '',
+      rating,
+      modelUsed,
+      productCards,
+      telemetry,
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Failed to record feedback:', error);
+    res.status(500).json({ error: 'فشل في حفظ التقييم' });
+  }
+});
+
 // Admin Authentication API
 app.post('/api/admin/login', (req: Request, res: Response) => {
   const { username, password } = req.body || {};
@@ -2651,7 +3750,7 @@ app.get('/api/admin/metrics', (req: Request, res: Response) => {
 
   const period = (req.query.period as any) || '7d';
   const metrics = analytics.getFilteredMetrics(period);
-  res.json({ success: true, ...metrics });
+  res.json({ success: true, ...metrics, feedbacks: analytics.getFeedbacks() });
 });
 
 // Admin Logout API
